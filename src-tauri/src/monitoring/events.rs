@@ -30,6 +30,9 @@ pub enum MonitoringEvent {
         pitch: f64,
         sample_count: usize,
     },
+    CalibrationFailed {
+        reason: String,
+    },
 }
 
 pub trait EventSink: Send + 'static {

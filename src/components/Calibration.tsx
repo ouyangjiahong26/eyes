@@ -18,91 +18,119 @@ interface PoseUpdate {
   pitch: number | null;
 }
 
+interface CalibrationCompletePayload {
+  yaw: number;
+  pitch: number;
+  sample_count: number;
+}
+
+interface CalibrationFailedPayload {
+  reason: string;
+}
+
 export function Calibration({ onComplete, onFail, onCancel }: CalibrationProps) {
   const { t } = useI18n();
   const [countdown, setCountdown] = useState(DURATION_SECONDS);
   const [samples, setSamples] = useState(0);
   const [lastYaw, setLastYaw] = useState<number | null>(null);
   const [lastPitch, setLastPitch] = useState<number | null>(null);
-  const noFaceTicks = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const unlistenRef = useRef<(() => void) | null>(null);
 
-  const finishCalibration = useCallback(async () => {
-    // 停止计时器
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const unlistenPoseRef = useRef<(() => void) | null>(null);
+  const unlistenCompleteRef = useRef<(() => void) | null>(null);
+  const unlistenFailedRef = useRef<(() => void) | null>(null);
+  const finishedRef = useRef(false);
+  const shouldCancelOnUnmountRef = useRef(true);
+  const handlersRef = useRef({ onComplete, onFail, onCancel });
+  handlersRef.current = { onComplete, onFail, onCancel };
+
+  const cleanup = useCallback(() => {
+    finishedRef.current = true;
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    // 停止监听
-    if (unlistenRef.current) {
-      unlistenRef.current();
-      unlistenRef.current = null;
+    if (unlistenPoseRef.current) {
+      unlistenPoseRef.current();
+      unlistenPoseRef.current = null;
     }
-    // 检查结果
-    try {
-      const status = await invoke<{
-        calibration_active: boolean;
-      }>('get_status');
-      if (!status.calibration_active) {
-        // 校准完成，从 config 读取新 neutral
-        const config = await invoke<{
-          neutral_yaw: number;
-          neutral_pitch: number;
-        }>('get_config');
-        onComplete(config.neutral_yaw, config.neutral_pitch);
-      } else {
-        onFail();
-      }
-    } catch {
-      onFail();
+    if (unlistenCompleteRef.current) {
+      unlistenCompleteRef.current();
+      unlistenCompleteRef.current = null;
     }
-  }, [onComplete, onFail]);
+    if (unlistenFailedRef.current) {
+      unlistenFailedRef.current();
+      unlistenFailedRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
-    // 监听姿态更新，喂入校准
+    finishedRef.current = false;
+    shouldCancelOnUnmountRef.current = true;
+
     listen<PoseUpdate>('pose-updated', (event) => {
-      const { yaw, pitch, pose_state } = event.payload;
+      if (finishedRef.current) return;
+      const { yaw, pitch } = event.payload;
       if (yaw !== null && pitch !== null) {
         setLastYaw(yaw);
         setLastPitch(pitch);
-        noFaceTicks.current = 0;
-        invoke('feed_calibration', { yaw, pitch }).catch(() => {});
-      } else if (pose_state === 'NoFace') {
-        noFaceTicks.current += 1;
-        // 连续 10 帧无人脸（1 秒），判定校准失败
-        if (noFaceTicks.current >= 10) {
-          invoke('cancel_calibration').catch(() => {});
-          onFail();
-        }
       }
     }).then((unlisten) => {
-      unlistenRef.current = unlisten;
+      if (finishedRef.current) {
+        unlisten();
+      } else {
+        unlistenPoseRef.current = unlisten;
+      }
     });
 
-    // 倒计时
+    listen<CalibrationCompletePayload>('calibration-complete', (event) => {
+      if (finishedRef.current) return;
+      shouldCancelOnUnmountRef.current = false;
+      cleanup();
+      handlersRef.current.onComplete(event.payload.yaw, event.payload.pitch);
+    }).then((unlisten) => {
+      if (finishedRef.current) {
+        unlisten();
+      } else {
+        unlistenCompleteRef.current = unlisten;
+      }
+    });
+
+    listen<CalibrationFailedPayload>('calibration-failed', () => {
+      if (finishedRef.current) return;
+      shouldCancelOnUnmountRef.current = false;
+      cleanup();
+      handlersRef.current.onFail();
+    }).then((unlisten) => {
+      if (finishedRef.current) {
+        unlisten();
+      } else {
+        unlistenFailedRef.current = unlisten;
+      }
+    });
+
     timerRef.current = setInterval(() => {
       setCountdown((prev) => {
         const next = prev - TICK_MS / 1000;
-        if (next <= 0) {
-          // 校准时间到，获取结果
-          finishCalibration();
-          return 0;
-        }
-        return next;
+        return next <= 0 ? 0 : next;
       });
       setSamples((prev) => prev + 1);
     }, TICK_MS);
 
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      if (unlistenRef.current) {
-        unlistenRef.current();
+      cleanup();
+      if (shouldCancelOnUnmountRef.current) {
+        invoke('cancel_calibration').catch(() => {});
       }
     };
-  }, [finishCalibration, onFail]);
+  }, [cleanup]);
+
+  const handleCancel = useCallback(() => {
+    shouldCancelOnUnmountRef.current = false;
+    cleanup();
+    invoke('cancel_calibration').catch(() => {});
+    handlersRef.current.onCancel();
+  }, [cleanup]);
 
   return (
     <div className="calibration">
@@ -118,7 +146,7 @@ export function Calibration({ onComplete, onFail, onCancel }: CalibrationProps) 
           yaw: {lastYaw.toFixed(1)}° / pitch: {lastPitch?.toFixed(1)}°
         </div>
       )}
-      <button onClick={onCancel} className="btn-secondary calibration-cancel">
+      <button onClick={handleCancel} className="btn-secondary calibration-cancel">
         {t('calibration.cancel')}
       </button>
     </div>

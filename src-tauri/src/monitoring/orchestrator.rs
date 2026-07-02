@@ -51,10 +51,12 @@ pub struct WorkerOrchestrator {
     config_state: Arc<ConfigState>,
     shared_state: Arc<Mutex<crate::app_state::AppState>>,
     calibration_session: Option<CalibrationSession>,
+    calibration_no_face_seconds: f64,
     event_sink: Box<dyn EventSink>,
     camera_factory: CameraFactory,
     detector_factory: DetectorFactory,
     monitor_factory: MonitorFactory,
+    retry_interval: Duration,
 }
 
 impl WorkerOrchestrator {
@@ -70,7 +72,14 @@ impl WorkerOrchestrator {
             config_state, shared_state, event_sink,
             camera_factory, detector_factory, monitor_factory,
             calibration_session: None,
+            calibration_no_face_seconds: 0.0,
+            retry_interval: Duration::from_secs(5),
         }
+    }
+
+    pub fn with_retry_interval(mut self, interval: Duration) -> Self {
+        self.retry_interval = interval;
+        self
     }
 
     pub fn run(mut self, rx: WorkerReceiver) {
@@ -78,7 +87,8 @@ impl WorkerOrchestrator {
 
         let mut camera_index = self.config_state.get().camera_index;
         let mut snooze_until: Option<Instant> = None;
-        let mut monitor: Option<Box<dyn Monitor>> = self.open_monitor(camera_index);
+        let mut snoozed = false;
+        let mut monitor: Option<Box<dyn Monitor>> = self.open_monitor(camera_index, snoozed);
 
         {
             let state = if monitor.is_some() { CameraState::Available } else { CameraState::Unavailable };
@@ -86,7 +96,7 @@ impl WorkerOrchestrator {
         }
 
         let mut retry_at: Option<Instant> =
-            if monitor.is_none() { Some(Instant::now() + Duration::from_secs(5)) } else { None };
+            if monitor.is_none() { Some(Instant::now() + self.retry_interval) } else { None };
 
         let tick_interval = Duration::from_millis(100);
         let mut stopped = false;
@@ -120,13 +130,14 @@ impl WorkerOrchestrator {
                         if camera_changed {
                             camera_index = new_config.camera_index;
                             monitor.take();
-                            monitor = self.open_monitor(camera_index);
+                            monitor = self.open_monitor(camera_index, snoozed);
                             if monitor.is_none() {
-                                retry_at = Some(Instant::now() + Duration::from_secs(5));
+                                retry_at = Some(Instant::now() + self.retry_interval);
                             }
                         }
                     }
                     WorkerCommand::Snooze(seconds) => {
+                        snoozed = true;
                         snooze_until = if seconds.is_infinite() {
                             None
                         } else {
@@ -137,6 +148,7 @@ impl WorkerOrchestrator {
                         }
                     }
                     WorkerCommand::Resume => {
+                        snoozed = false;
                         snooze_until = None;
                         if let Some(ref mut w) = monitor {
                             w.set_snoozed(false);
@@ -149,12 +161,14 @@ impl WorkerOrchestrator {
                         let mut session = CalibrationSession::new(5.0);
                         session.start();
                         self.calibration_session = Some(session);
+                        self.calibration_no_face_seconds = 0.0;
                         if let Ok(mut s) = self.shared_state.lock() {
                             s.status.calibration_active = true;
                         }
                     }
                     WorkerCommand::CancelCalibration => {
                         self.calibration_session = None;
+                        self.calibration_no_face_seconds = 0.0;
                         if let Ok(mut s) = self.shared_state.lock() {
                             s.status.calibration_active = false;
                         }
@@ -166,7 +180,7 @@ impl WorkerOrchestrator {
                 }
             }
 
-            self.process_tick(&mut monitor, &mut snooze_until, &mut retry_at, camera_index, &mut last_tick);
+            self.process_tick(&mut monitor, &mut snooze_until, &mut snoozed, &mut retry_at, camera_index, &mut last_tick);
         }
     }
 
@@ -174,11 +188,13 @@ impl WorkerOrchestrator {
         &mut self,
         monitor: &mut Option<Box<dyn Monitor>>,
         snooze_until: &mut Option<Instant>,
+        snoozed: &mut bool,
         retry_at: &mut Option<Instant>,
         camera_index: u32,
         last_tick: &mut Instant,
     ) {
         use crate::app_state::CameraState;
+        use crate::domain::classifier::PoseState;
 
         let now = Instant::now();
         let dt = now.duration_since(*last_tick).as_secs_f64();
@@ -187,6 +203,7 @@ impl WorkerOrchestrator {
         if let Some(until) = snooze_until {
             if now >= *until {
                 *snooze_until = None;
+                *snoozed = false;
                 if let Some(ref mut w) = monitor {
                     w.set_snoozed(false);
                 }
@@ -197,25 +214,40 @@ impl WorkerOrchestrator {
         }
 
         if monitor.is_none() && retry_at.is_some_and(|due| now >= due) {
-            *monitor = self.open_monitor(camera_index);
+            *monitor = self.open_monitor(camera_index, *snoozed);
             if monitor.is_some() {
                 if let Ok(mut s) = self.shared_state.lock() {
                     s.status.camera_state = CameraState::Available;
                 }
                 *retry_at = None;
             } else {
-                *retry_at = Some(now + Duration::from_secs(5));
+                *retry_at = Some(now + self.retry_interval);
             }
         }
 
         if let Some(ref mut w) = monitor {
             let output = w.tick(0.1);
 
-            // 从 monitor 输出喂入校准样本
+            // 从 monitor 输出喂入校准样本并检测连续无脸
             if let Some(ref mut session) = self.calibration_session {
                 if session.is_active() {
                     if let (Some(y), Some(p)) = (output.yaw, output.pitch) {
                         session.feed(y, p);
+                    }
+                    if output.pose_state == PoseState::NoFace {
+                        self.calibration_no_face_seconds += dt;
+                        if self.calibration_no_face_seconds >= 1.0 {
+                            self.event_sink.emit(MonitoringEvent::CalibrationFailed {
+                                reason: "no_face".into(),
+                            });
+                            if let Ok(mut s) = self.shared_state.lock() {
+                                s.status.calibration_active = false;
+                            }
+                            self.calibration_session = None;
+                            self.calibration_no_face_seconds = 0.0;
+                        }
+                    } else {
+                        self.calibration_no_face_seconds = 0.0;
                     }
                 }
             }
@@ -236,7 +268,26 @@ impl WorkerOrchestrator {
 
             if !output.camera_ok {
                 monitor.take();
-                *retry_at = Some(now + Duration::from_secs(5));
+                *retry_at = Some(now + self.retry_interval);
+            }
+        }
+
+        // 监控器缺失时也视为连续无脸，达到阈值同样触发失败
+        if monitor.is_none() {
+            if let Some(ref session) = self.calibration_session {
+                if session.is_active() {
+                    self.calibration_no_face_seconds += dt;
+                    if self.calibration_no_face_seconds >= 1.0 {
+                        self.event_sink.emit(MonitoringEvent::CalibrationFailed {
+                            reason: "no_face".into(),
+                        });
+                        if let Ok(mut s) = self.shared_state.lock() {
+                            s.status.calibration_active = false;
+                        }
+                        self.calibration_session = None;
+                        self.calibration_no_face_seconds = 0.0;
+                    }
+                }
             }
         }
 
@@ -257,20 +308,27 @@ impl WorkerOrchestrator {
                             pitch: res.pitch,
                             sample_count: res.sample_count,
                         });
+                    } else {
+                        self.event_sink.emit(MonitoringEvent::CalibrationFailed {
+                            reason: "no_face".into(),
+                        });
                     }
                     if let Ok(mut s) = self.shared_state.lock() {
                         s.status.calibration_active = false;
                     }
                     self.calibration_session = None;
+                    self.calibration_no_face_seconds = 0.0;
                 }
             }
         }
     }
 
-    fn open_monitor(&mut self, camera_index: u32) -> Option<Box<dyn Monitor>> {
+    fn open_monitor(&mut self, camera_index: u32, snoozed: bool) -> Option<Box<dyn Monitor>> {
         let camera = (self.camera_factory)(camera_index).ok()?;
         let detector = (self.detector_factory)();
-        Some((self.monitor_factory)(camera, detector))
+        let mut monitor = (self.monitor_factory)(camera, detector);
+        monitor.set_snoozed(snoozed);
+        Some(monitor)
     }
 }
 
@@ -282,21 +340,27 @@ mod tests {
     use crate::domain::posture_tick_engine::WarningLevel;
     use crate::monitoring::channel;
     use crate::monitoring::events::MonitoringEvent;
+    use std::collections::VecDeque;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     // ── Mock Monitor ─────────────────────────────────────────────
 
     struct MockMonitor {
         outputs: Vec<WorkerOutput>,
         index: usize,
-        snoozed: bool,
+        snoozed: Arc<AtomicBool>,
     }
 
     impl MockMonitor {
         fn new(outputs: Vec<WorkerOutput>) -> Self {
+            Self::with_shared_state(outputs, Arc::new(AtomicBool::new(false)))
+        }
+
+        fn with_shared_state(outputs: Vec<WorkerOutput>, snoozed: Arc<AtomicBool>) -> Self {
             Self {
                 outputs,
                 index: 0,
-                snoozed: false,
+                snoozed,
             }
         }
     }
@@ -331,7 +395,7 @@ mod tests {
         }
 
         fn set_snoozed(&mut self, snoozed: bool) {
-            self.snoozed = snoozed;
+            self.snoozed.store(snoozed, Ordering::SeqCst);
         }
 
         fn update_timing(
@@ -377,6 +441,9 @@ mod tests {
                 MonitoringEvent::CalibrationComplete { yaw, pitch, sample_count } => {
                     format!("calibration_complete:{}:{}:{}", yaw, pitch, sample_count)
                 }
+                MonitoringEvent::CalibrationFailed { reason } => {
+                    format!("calibration_failed:{}", reason)
+                }
             };
             self.events.lock().unwrap().push(s);
         }
@@ -401,6 +468,19 @@ mod tests {
         WorkerOutput {
             preview: None,
             camera_ok: false,
+            pose_state: PoseState::NoFace,
+            pitch_state: PoseState::NoFace,
+            yaw: None,
+            pitch: None,
+            warning_level: WarningLevel::Normal,
+            sense_events: Vec::new(),
+        }
+    }
+
+    fn no_face_output() -> WorkerOutput {
+        WorkerOutput {
+            preview: None,
+            camera_ok: true,
             pose_state: PoseState::NoFace,
             pitch_state: PoseState::NoFace,
             yaw: None,
@@ -477,6 +557,71 @@ mod tests {
         );
 
         (orchestrator, tx, rx)
+    }
+
+    fn setup_orchestrator_with_monitor_queue(
+        outputs_per_monitor: Vec<Vec<WorkerOutput>>,
+        sink: MockSink,
+        camera_factory_succeeds: bool,
+    ) -> (
+        WorkerOrchestrator,
+        channel::WorkerSender,
+        WorkerReceiver,
+        Arc<Mutex<Vec<Arc<AtomicBool>>>>,
+    ) {
+        let (tx, rx) = channel::channel();
+
+        let dir = tempfile::tempdir().unwrap();
+        let config_state = Arc::new(
+            ConfigState::new(ConfigStore::new(dir.path())).unwrap(),
+        );
+
+        let shared_state = Arc::new(Mutex::new(crate::app_state::AppState::new()));
+
+        let snooze_states: Arc<Mutex<Vec<Arc<AtomicBool>>>> =
+            Arc::new(Mutex::new(Vec::new()));
+        let outputs_queue: Arc<Mutex<VecDeque<Vec<WorkerOutput>>>> =
+            Arc::new(Mutex::new(outputs_per_monitor.into_iter().collect()));
+
+        let states = snooze_states.clone();
+        let queue = outputs_queue.clone();
+        let monitor_factory: MonitorFactory = Box::new(move |_cam, _det| {
+            let outputs = queue
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("mock monitor queue exhausted");
+            let state = Arc::new(AtomicBool::new(false));
+            states.lock().unwrap().push(state.clone());
+            Box::new(MockMonitor::with_shared_state(outputs, state))
+        });
+
+        let camera_factory: CameraFactory = if camera_factory_succeeds {
+            Box::new(move |_idx| {
+                struct Dummy;
+                impl FrameSource for Dummy {
+                    fn read_frame(&mut self) -> Result<Option<crate::monitoring::preview::Frame>, String> {
+                        Ok(None)
+                    }
+                }
+                Ok(Box::new(Dummy))
+            })
+        } else {
+            Box::new(move |_idx| Err("摄像头不可用".into()))
+        };
+
+        let detector_factory: DetectorFactory = Box::new(|| None);
+
+        let orchestrator = WorkerOrchestrator::new(
+            config_state,
+            shared_state,
+            Box::new(sink),
+            camera_factory,
+            detector_factory,
+            monitor_factory,
+        );
+
+        (orchestrator, tx, rx, snooze_states)
     }
 
     // ── 测试用例 ─────────────────────────────────────────────────
@@ -783,5 +928,179 @@ mod tests {
         let events = sink.get_events();
         let cal_events: Vec<_> = events.iter().filter(|e| e.starts_with("calibration_complete:")).collect();
         assert_eq!(cal_events.len(), 1, "校准应在真实时间后完成");
+    }
+
+    #[test]
+    fn calibration_fails_on_continuous_no_face() {
+        // 连续 1 秒检测不到人脸应触发 CalibrationFailed
+        let outputs: Vec<WorkerOutput> = (0..20).map(|_| no_face_output()).collect();
+        let sink = MockSink::new();
+        let (orch, tx, rx) = setup_orchestrator(outputs, sink.clone(), true);
+
+        let handle = std::thread::spawn(move || {
+            orch.run(rx);
+        });
+
+        let _ = tx.send(WorkerCommand::StartCalibration);
+        std::thread::sleep(Duration::from_millis(1200));
+        let _ = tx.send(WorkerCommand::Stop);
+        let _ = handle.join();
+
+        let events = sink.get_events();
+        assert!(
+            events.iter().any(|e| e == "calibration_failed:no_face"),
+            "应发出连续无脸导致的校准失败事件"
+        );
+        assert!(
+            !events.iter().any(|e| e.starts_with("calibration_complete:")),
+            "失败时不应发出 CalibrationComplete"
+        );
+    }
+
+    // ── snooze 状态继承测试 ───────────────────────────────────────
+
+    #[test]
+    fn snooze_preserved_on_set_camera_index() {
+        let sink = MockSink::new();
+        let (orch, tx, rx, states) = setup_orchestrator_with_monitor_queue(
+            vec![vec![good_output()], vec![good_output()]],
+            sink.clone(),
+            true,
+        );
+
+        let handle = std::thread::spawn(move || {
+            orch.with_retry_interval(Duration::from_millis(50))
+                .run(rx);
+        });
+
+        // 等待初始 monitor 创建
+        std::thread::sleep(Duration::from_millis(100));
+        assert_eq!(states.lock().unwrap().len(), 1);
+        assert!(!states.lock().unwrap()[0].load(Ordering::SeqCst));
+
+        // 进入无限期 snooze
+        let _ = tx.send(WorkerCommand::Snooze(f64::INFINITY));
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(states.lock().unwrap()[0].load(Ordering::SeqCst));
+
+        // 切换摄像头，新 monitor 应继承 snooze 状态
+        let _ = tx.send(WorkerCommand::SetCameraIndex(1));
+        std::thread::sleep(Duration::from_millis(200));
+        assert_eq!(states.lock().unwrap().len(), 2);
+        assert!(
+            states.lock().unwrap()[1].load(Ordering::SeqCst),
+            "切换摄像头后新 monitor 应保持 snooze"
+        );
+
+        let _ = tx.send(WorkerCommand::Stop);
+        let _ = handle.join();
+    }
+
+    #[test]
+    fn snooze_preserved_on_camera_retry() {
+        let sink = MockSink::new();
+        let (tx, rx) = channel::channel();
+        let dir = tempfile::tempdir().unwrap();
+        let config_state = Arc::new(
+            ConfigState::new(ConfigStore::new(dir.path())).unwrap(),
+        );
+        let shared_state = Arc::new(Mutex::new(crate::app_state::AppState::new()));
+
+        let snooze_states: Arc<Mutex<Vec<Arc<AtomicBool>>>> =
+            Arc::new(Mutex::new(Vec::new()));
+        let states = snooze_states.clone();
+        let monitor_factory: MonitorFactory = Box::new(move |_cam, _det| {
+            let state = Arc::new(AtomicBool::new(false));
+            states.lock().unwrap().push(state.clone());
+            Box::new(MockMonitor::with_shared_state(vec![good_output()], state))
+        });
+
+        let camera_succeed = Arc::new(AtomicBool::new(false));
+        let cam_ok = camera_succeed.clone();
+        let camera_factory: CameraFactory = Box::new(move |_idx| {
+            if cam_ok.load(Ordering::SeqCst) {
+                struct Dummy;
+                impl FrameSource for Dummy {
+                    fn read_frame(&mut self) -> Result<Option<crate::monitoring::preview::Frame>, String> {
+                        Ok(None)
+                    }
+                }
+                Ok(Box::new(Dummy))
+            } else {
+                Err("摄像头不可用".into())
+            }
+        });
+        let detector_factory: DetectorFactory = Box::new(|| None);
+
+        let orch = WorkerOrchestrator::new(
+            config_state,
+            shared_state,
+            Box::new(sink),
+            camera_factory,
+            detector_factory,
+            monitor_factory,
+        );
+
+        let handle = std::thread::spawn(move || {
+            orch.with_retry_interval(Duration::from_millis(50))
+                .run(rx);
+        });
+
+        // 初始摄像头不可用，无 monitor
+        std::thread::sleep(Duration::from_millis(100));
+        assert_eq!(snooze_states.lock().unwrap().len(), 0);
+
+        // 在摄像头不可用时进入 snooze
+        let _ = tx.send(WorkerCommand::Snooze(f64::INFINITY));
+        std::thread::sleep(Duration::from_millis(50));
+
+        // 摄像头恢复可用，重试创建 monitor
+        camera_succeed.store(true, Ordering::SeqCst);
+        std::thread::sleep(Duration::from_millis(200));
+
+        assert_eq!(snooze_states.lock().unwrap().len(), 1);
+        assert!(
+            snooze_states.lock().unwrap()[0].load(Ordering::SeqCst),
+            "摄像头恢复后创建的新 monitor 应保持 snooze"
+        );
+
+        let _ = tx.send(WorkerCommand::Stop);
+        let _ = handle.join();
+    }
+
+    #[test]
+    fn resume_clears_snooze_for_future_monitors() {
+        let sink = MockSink::new();
+        let (orch, tx, rx, states) = setup_orchestrator_with_monitor_queue(
+            vec![vec![good_output()], vec![good_output()]],
+            sink.clone(),
+            true,
+        );
+
+        let handle = std::thread::spawn(move || {
+            orch.with_retry_interval(Duration::from_millis(50))
+                .run(rx);
+        });
+
+        // 等待初始 monitor 创建并进入 snooze
+        std::thread::sleep(Duration::from_millis(100));
+        let _ = tx.send(WorkerCommand::Snooze(f64::INFINITY));
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(states.lock().unwrap()[0].load(Ordering::SeqCst));
+
+        // resume 后再切换摄像头
+        let _ = tx.send(WorkerCommand::Resume);
+        std::thread::sleep(Duration::from_millis(50));
+        let _ = tx.send(WorkerCommand::SetCameraIndex(1));
+        std::thread::sleep(Duration::from_millis(200));
+
+        assert_eq!(states.lock().unwrap().len(), 2);
+        assert!(
+            !states.lock().unwrap()[1].load(Ordering::SeqCst),
+            "resume 后新 monitor 不应保持 snooze"
+        );
+
+        let _ = tx.send(WorkerCommand::Stop);
+        let _ = handle.join();
     }
 }
