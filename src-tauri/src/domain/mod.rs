@@ -3,5 +3,6 @@ pub mod classifier;
 pub mod config;
 pub mod defaults;
 pub mod event_log;
+pub mod paths;
 pub mod posture_tick_engine;
 pub mod snooze;

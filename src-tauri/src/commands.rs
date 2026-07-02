@@ -3,6 +3,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::app_shell::desktop::rebuild_tray;
 use crate::app_state::{CameraState, SharedAppState};
+use crate::autostart::apply_autostart;
 use crate::domain::config::{AppConfig, ConfigState};
 use crate::domain::snooze::{self, SnoozeState};
 use crate::monitoring::camera_enumerator;
@@ -36,7 +37,15 @@ pub fn set_config(
     worker_tx: State<'_, Mutex<WorkerSender>>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
+    let old_config = config_state.get();
+    let autostart_changed =
+        old_config.autostart_enabled != new_config.autostart_enabled;
+
     config_state.set(new_config.clone()).map_err(|e| e.to_string())?;
+
+    if autostart_changed {
+        apply_autostart(&app_handle, new_config.autostart_enabled);
+    }
 
     if let Ok(tx) = worker_tx.lock() {
         let _ = tx.send(WorkerCommand::SetConfig(Box::new(new_config.clone())));

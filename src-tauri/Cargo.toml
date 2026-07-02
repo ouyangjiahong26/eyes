@@ -26,6 +26,7 @@ serde_yaml = "0.9"
 tauri = { version = "2", features = ["tray-icon"] }
 ts-rs = { version = "12", features = ["serde-compat"] }
 tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 dirs = "6"
 ort = { version = "=2.0.0-rc.12", optional = true }

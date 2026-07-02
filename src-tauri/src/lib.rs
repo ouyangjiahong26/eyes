@@ -1,5 +1,6 @@
 pub mod app_shell;
 pub mod app_state;
+pub mod autostart;
 pub mod commands;
 pub mod domain;
 pub mod monitoring;
@@ -9,6 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use app_shell::desktop::{create_tray, handle_second_instance, handle_window_event};
 use app_state::AppState;
+use autostart::apply_autostart;
 use commands::{
     cancel_calibration, feed_calibration, get_config, get_status, list_cameras, resume,
     set_camera_index, set_config, snooze, start_calibration,
@@ -45,7 +47,7 @@ fn add_resource_dll_dir(_app_handle: &tauri::AppHandle) {}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let config_dir = dirs::config_dir().unwrap_or_default();
+    let config_dir = domain::paths::app_config_dir(dirs::config_dir());
     let config_state = Arc::new(
         ConfigState::new(domain::config::ConfigStore::new(config_dir))
             .expect("加载配置失败"),
@@ -57,11 +59,19 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             handle_second_instance(app);
         }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(shared_state.clone())
         .manage(config_state.clone())
         .setup(move |app| {
             add_resource_dll_dir(app.handle());
             create_tray(app, &language)?;
+
+            let initial_autostart = config_state.get().autostart_enabled;
+            apply_autostart(app.handle(), initial_autostart);
+
             let worker_tx = spawn_worker(
                 app.handle().clone(),
                 config_state,

@@ -77,6 +77,12 @@ impl EventSink for TauriEventSink {
                     }),
                 );
             }
+            MonitoringEvent::CalibrationFailed { reason } => {
+                let _ = self.app.emit(
+                    "calibration-failed",
+                    serde_json::json!({ "reason": reason }),
+                );
+            }
         }
     }
 }
@@ -91,7 +97,7 @@ pub fn spawn_worker(
 ) -> WorkerSender {
     let (tx, rx) = channel();
 
-    let config_dir = dirs::config_dir().unwrap_or_default();
+    let config_dir = crate::domain::paths::app_config_dir(dirs::config_dir());
     let event_log = Arc::new(EventLog::new(config_dir.clone()));
 
     // 相机工厂（feature-gated）
