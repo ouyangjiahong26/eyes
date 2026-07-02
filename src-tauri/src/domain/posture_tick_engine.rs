@@ -24,14 +24,6 @@ pub enum SenseEvent {
 
 // 默认值已统一到 domain::defaults
 
-fn is_yaw_state(state: PoseState) -> bool {
-    matches!(state, PoseState::OffAxisLeft | PoseState::OffAxisRight)
-}
-
-fn is_pitch_state(state: PoseState) -> bool {
-    matches!(state, PoseState::HeadUp | PoseState::HeadDown)
-}
-
 fn direction_label(state: PoseState) -> &'static str {
     match state {
         PoseState::OffAxisLeft => "left",
@@ -42,9 +34,16 @@ fn direction_label(state: PoseState) -> &'static str {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Axis {
+    Yaw,
+    Pitch,
+}
+
 /// 单轴 off-axis 跟踪状态：streak 计时、重复提醒、警告升级 FSM。
 #[derive(Debug, Clone)]
 struct OffAxisState {
+    axis: Axis,
     streak: f64,
     repeat_due_at: Option<f64>,
     last_emit_at: Option<f64>,
@@ -54,8 +53,9 @@ struct OffAxisState {
 }
 
 impl OffAxisState {
-    fn new() -> Self {
+    fn new(axis: Axis) -> Self {
         Self {
+            axis,
             streak: 0.0,
             repeat_due_at: None,
             last_emit_at: None,
@@ -63,6 +63,14 @@ impl OffAxisState {
             continuous_seconds: 0.0,
             corrected_remaining_seconds: 0.0,
         }
+    }
+
+    fn new_yaw() -> Self {
+        Self::new(Axis::Yaw)
+    }
+
+    fn new_pitch() -> Self {
+        Self::new(Axis::Pitch)
     }
 
     fn reset_streak(&mut self) {
@@ -86,7 +94,7 @@ impl OffAxisState {
         repeat_interval: f64,
         events: &mut Vec<SenseEvent>,
     ) {
-        if is_off_for_self(state) {
+        if self.is_off_for_self(state) {
             self.streak += dt;
             if self.streak >= streak_threshold {
                 if self.last_emit_at.is_none() {
@@ -116,7 +124,7 @@ impl OffAxisState {
     ) {
         let direction = direction_label(state);
         match state {
-            _ if is_off_for_self(state) => {
+            _ if self.is_off_for_self(state) => {
                 if matches!(
                     self.warning_level,
                     WarningLevel::Normal | WarningLevel::Corrected
@@ -180,6 +188,21 @@ impl OffAxisState {
         }
     }
 
+    /// 判断状态是否属于本轴的 off-axis。
+    /// yaw 只关心 OffAxisLeft/OffAxisRight，pitch 只关心 HeadUp/HeadDown，
+    /// 避免把另一轴的偏离状态计入本轴的 streak 或警告升级。
+    fn is_off_for_self(&self, state: PoseState) -> bool {
+        match self.axis {
+            Axis::Yaw => matches!(state, PoseState::OffAxisLeft | PoseState::OffAxisRight),
+            Axis::Pitch => matches!(state, PoseState::HeadUp | PoseState::HeadDown),
+        }
+    }
+
+    /// 通用状态（两轴共享）：FacingScreen、NoFace。
+    fn is_applicable(&self, state: PoseState) -> bool {
+        self.is_off_for_self(state) || matches!(state, PoseState::FacingScreen | PoseState::NoFace)
+    }
+
     /// 处理单轴完整 tick：streak + warning。
     fn tick(
         &mut self,
@@ -190,30 +213,13 @@ impl OffAxisState {
     ) -> Vec<SenseEvent> {
         let mut events = Vec::new();
         // 不属于本轴且非通用状态 → 静默忽略
-        if !is_applicable(state) {
+        if !self.is_applicable(state) {
             return events;
         }
         self.update_streak(state, dt, streak_threshold, repeat_interval, &mut events);
         self.update_warning_level(state, dt, repeat_interval, &mut events);
         events
     }
-}
-
-/// 判断状态是否属于本轴的 off-axis。
-fn is_off_for_self(state: PoseState) -> bool {
-    // 调用前已通过 is_applicable 过滤，此处只需匹配所有 off-axis 状态
-    matches!(
-        state,
-        PoseState::OffAxisLeft
-            | PoseState::OffAxisRight
-            | PoseState::HeadUp
-            | PoseState::HeadDown
-    )
-}
-
-/// 通用状态（两轴共享）：FacingScreen、NoFace。
-fn is_applicable(state: PoseState) -> bool {
-    is_yaw_state(state) || is_pitch_state(state) || matches!(state, PoseState::FacingScreen | PoseState::NoFace)
 }
 
 #[derive(Debug, Clone)]
@@ -252,8 +258,8 @@ impl PostureTickEngine {
             facing_seconds: 0.0,
             presence_seconds: 0.0,
             snoozed: false,
-            yaw_oa: OffAxisState::new(),
-            pitch_oa: OffAxisState::new(),
+            yaw_oa: OffAxisState::new_yaw(),
+            pitch_oa: OffAxisState::new_pitch(),
         }
     }
 
@@ -403,5 +409,60 @@ mod tests {
 
         // 警告状态不变
         assert_eq!(engine.warning_level(), WarningLevel::Warning);
+    }
+
+    #[test]
+    fn yaw_tracker_ignores_pitch_only_states() {
+        // yaw 跟踪器不应把 pitch 轴的 HeadUp/HeadDown 当作本轴偏离。
+        let mut yaw = OffAxisState::new_yaw();
+        let dt = 0.1;
+        let threshold = 0.3;
+        let repeat = 10.0;
+
+        for _ in 0..100 {
+            let events = yaw.tick(PoseState::HeadUp, dt, threshold, repeat);
+            assert!(events.is_empty(), "yaw tracker should not emit events for HeadUp");
+        }
+
+        assert_eq!(yaw.streak, 0.0);
+        assert_eq!(yaw.warning_level, WarningLevel::Normal);
+    }
+
+    #[test]
+    fn pitch_tracker_ignores_yaw_only_states() {
+        // pitch 跟踪器不应把 yaw 轴的 OffAxisLeft/OffAxisRight 当作本轴偏离。
+        let mut pitch = OffAxisState::new_pitch();
+        let dt = 0.1;
+        let threshold = 0.3;
+        let repeat = 10.0;
+
+        for _ in 0..100 {
+            let events = pitch.tick(PoseState::OffAxisRight, dt, threshold, repeat);
+            assert!(
+                events.is_empty(),
+                "pitch tracker should not emit events for OffAxisRight"
+            );
+        }
+
+        assert_eq!(pitch.streak, 0.0);
+        assert_eq!(pitch.warning_level, WarningLevel::Normal);
+    }
+
+    #[test]
+    fn yaw_tracker_responds_to_yaw_states() {
+        // 轴专属过滤后，yaw 仍应正常响应本轴偏离。
+        let mut yaw = OffAxisState::new_yaw();
+        let events = yaw.tick(PoseState::OffAxisRight, 0.5, 0.3, 10.0);
+        assert!(!events.is_empty(), "yaw tracker should emit Correction for OffAxisRight");
+        assert_eq!(yaw.warning_level, WarningLevel::Warning);
+    }
+
+    #[test]
+    fn pitch_tracker_responds_to_pitch_states() {
+        // 轴专属过滤后，pitch 仍应正常响应本轴偏离。
+        let mut pitch = OffAxisState::new_pitch();
+        let events = pitch.tick(PoseState::HeadUp, 0.5, 0.3, 10.0);
+        assert!(!events.is_empty(), "pitch tracker should emit Correction for HeadUp");
+        assert_eq!(pitch.warning_level, WarningLevel::Warning);
     }
 }

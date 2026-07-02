@@ -73,10 +73,9 @@ fn classify_axis(
     positive_state: PoseState,
 ) -> PoseState {
     let abs_dev = dev.abs();
-    let was_off_axis = matches!(
-        prev_state,
-        PoseState::OffAxisLeft | PoseState::OffAxisRight | PoseState::HeadUp | PoseState::HeadDown
-    );
+    // 轴专属过滤：was_off_axis 只应判断本轴的 off-axis 状态。
+    // 否则 pitch 的 HeadUp/HeadDown 会误让 yaw 使用 hysteresis，反之亦然。
+    let was_off_axis = prev_state == negative_state || prev_state == positive_state;
 
     let outside = if was_off_axis {
         abs_dev > hysteresis
@@ -136,5 +135,60 @@ pub fn classify(
     PoseClassification {
         yaw_state,
         pitch_state,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn yaw_classify_ignores_pitch_prev_state_for_hysteresis() {
+        // yaw 偏差落在 threshold 与 hysteresis 之间时，
+        // 若 prev_state 是 pitch 轴的 HeadUp，本不应使用 hysteresis。
+        let pose = HeadPose {
+            yaw: 2.0,
+            pitch: 0.0,
+        };
+        let thresholds = Thresholds {
+            yaw_deg: 3.0,
+            yaw_hysteresis_deg: 1.0,
+            pitch_deg: 3.0,
+            pitch_hysteresis_deg: 1.0,
+        };
+        let prev = PoseClassification {
+            yaw_state: PoseState::FacingScreen,
+            pitch_state: PoseState::HeadUp,
+        };
+
+        let result = classify(Some(pose), None, Some(thresholds), Some(prev));
+
+        // 2.0 > threshold 3.0 不成立，应判定为 FacingScreen
+        assert_eq!(result.yaw_state, PoseState::FacingScreen);
+    }
+
+    #[test]
+    fn pitch_classify_ignores_yaw_prev_state_for_hysteresis() {
+        // pitch 偏差落在 threshold 与 hysteresis 之间时，
+        // 若 prev_state 是 yaw 轴的 OffAxisRight，本不应使用 hysteresis。
+        let pose = HeadPose {
+            yaw: 0.0,
+            pitch: 2.0,
+        };
+        let thresholds = Thresholds {
+            yaw_deg: 3.0,
+            yaw_hysteresis_deg: 1.0,
+            pitch_deg: 3.0,
+            pitch_hysteresis_deg: 1.0,
+        };
+        let prev = PoseClassification {
+            yaw_state: PoseState::OffAxisRight,
+            pitch_state: PoseState::FacingScreen,
+        };
+
+        let result = classify(Some(pose), None, Some(thresholds), Some(prev));
+
+        // 2.0 > threshold 3.0 不成立，应判定为 FacingScreen
+        assert_eq!(result.pitch_state, PoseState::FacingScreen);
     }
 }
