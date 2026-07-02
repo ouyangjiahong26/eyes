@@ -196,15 +196,17 @@ export function Settings({ onBack }: { onBack: () => void }) {
           </button>
         </label>
 
-        <label className="toggle-row">
-          {t('settings.autostart_enabled')}
-          <button
-            className={`toggle-btn ${config.autostart_enabled ? 'on' : 'off'}`}
-            onClick={() => update('autostart_enabled', !config.autostart_enabled)}
-          >
-            {config.autostart_enabled ? 'ON' : 'OFF'}
-          </button>
-        </label>
+        {navigator.platform.toLowerCase().startsWith('win') && (
+          <label className="toggle-row">
+            {t('settings.autostart_enabled')}
+            <button
+              className={`toggle-btn ${config.autostart_enabled ? 'on' : 'off'}`}
+              onClick={() => update('autostart_enabled', !config.autostart_enabled)}
+            >
+              {config.autostart_enabled ? 'ON' : 'OFF'}
+            </button>
+          </label>
+        )}
       </fieldset>
 
       {/* 语言 */}
@@ -219,8 +221,14 @@ export function Settings({ onBack }: { onBack: () => void }) {
       </fieldset>
 
       {/* 高级设置 */}
-      <details className="settings-group advanced">
-        <summary onClick={() => setShowAdvanced(!showAdvanced)}>{t('settings.advanced')}</summary>
+      <div className="settings-group advanced">
+        <button
+          type="button"
+          className="advanced-toggle"
+          onClick={() => setShowAdvanced((prev) => !prev)}
+        >
+          {t('settings.advanced')}
+        </button>
         {showAdvanced && (
           <>
             <label>
@@ -261,7 +269,7 @@ export function Settings({ onBack }: { onBack: () => void }) {
             </label>
           </>
         )}
-      </details>
+      </div>
 
       {/* 操作按钮 */}
       <div className="settings-actions">

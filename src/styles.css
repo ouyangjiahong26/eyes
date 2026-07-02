@@ -221,13 +221,20 @@ select {
 }
 
 /* 高级设置 */
-.settings-group.advanced summary {
+.advanced-toggle {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
   cursor: pointer;
   color: #888;
   font-size: 0.85rem;
 }
 
-.settings-group.advanced summary:hover {
+.advanced-toggle:hover {
   color: #b8c7dc;
 }
 
