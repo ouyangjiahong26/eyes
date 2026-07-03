@@ -1,18 +1,17 @@
 //! 后台 worker 启动。
 //!
-//! VS0：用 `NullSink` 让 `WorkerOrchestrator` 跑空 tick 循环，
-//! 不接入任何事件出口。默认 feature 下没有摄像头/检测器后端，
-//! orchestrator 会进入"摄像头不可用 → 每 5 秒重试"的空转状态，
-//! 这正是 tracer bullet 想验证的"后台线程能存活"。
+//! VS1：用 `BevyEventSink` 把监控事件通过 mpsc channel 推到 Bevy 主线程。
+//! 调用方（lib.rs setup system）先建好 channel，把 `Sender` 传进来。
 
-use std::sync::Arc;
+use std::sync::{mpsc::Sender, Arc};
 
 use crate::app_state::{AppState, SharedAppState};
 use crate::domain::config::ConfigState;
 use crate::domain::paths;
 use crate::domain::posture_tick_engine::PostureTickEngine;
 use crate::monitoring::channel::{self, WorkerSender};
-use crate::monitoring::event_sink::NullSink;
+use crate::monitoring::event_sink::BevyEventSink;
+use crate::monitoring::events::MonitoringEvent;
 use crate::monitoring::orchestrator::{
     CameraFactory, DetectorFactory, MonitorFactory, WorkerOrchestrator,
 };
@@ -20,9 +19,13 @@ use crate::monitoring::worker::MonitoringWorker;
 
 /// 启动后台监控 worker，返回命令发送端。
 ///
-/// VS0 不接事件 sink：传入 `NullSink`，监控事件直接丢弃。
-/// 主线程退出时通过 `WorkerSender` 发 `Stop` 让 orchestrator 干净退出。
-pub fn spawn_worker(config_state: Arc<ConfigState>) -> WorkerSender {
+/// `event_tx` 是 mpsc 的发送端，worker 产出的 `MonitoringEvent` 会通过
+/// `BevyEventSink` 推到这个 channel；Bevy 主线程用对应的 `Receiver`
+/// 在 Update 系统里消费。
+pub fn spawn_worker(
+    config_state: Arc<ConfigState>,
+    event_tx: Sender<MonitoringEvent>,
+) -> WorkerSender {
     let (tx, rx) = channel::channel();
 
     let shared_state: SharedAppState = Arc::new(std::sync::Mutex::new(AppState::new()));
@@ -65,7 +68,7 @@ pub fn spawn_worker(config_state: Arc<ConfigState>) -> WorkerSender {
     let orchestrator = WorkerOrchestrator::new(
         config_state,
         shared_state,
-        Box::new(NullSink),
+        Box::new(BevyEventSink::new(event_tx)),
         camera_factory,
         detector_factory,
         monitor_factory,

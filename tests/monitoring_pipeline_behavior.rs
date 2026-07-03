@@ -5,14 +5,19 @@
 //! 2. 时间累加器（GoodPosture / EyeRest）
 //! 3. Warning 级别流转
 //! 4. Pitch 轴 Correction
+//!
+//! VS1 追加：通过 BevyEventSink + mpsc 验证 MonitoringEvent 流端到端可达。
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 
 use eyes_lib::domain::classifier::{HeadPose, PoseState};
 use eyes_lib::domain::config::{ConfigState, ConfigStore};
 use eyes_lib::domain::posture_tick_engine::{PostureTickEngine, SenseEvent, WarningLevel};
 use eyes_lib::monitoring::detector::Detector;
+use eyes_lib::monitoring::event_mapping;
+use eyes_lib::monitoring::event_sink::BevyEventSink;
+use eyes_lib::monitoring::events::{EventSink, MonitoringEvent};
 use eyes_lib::monitoring::preview::Frame;
 use eyes_lib::monitoring::worker::{FrameSource, MonitoringWorker, WorkerOutput};
 
@@ -305,4 +310,108 @@ fn yaw_and_pitch_both_trigger_independent_corrections() {
         has_correction_for(&events, PoseState::HeadDown),
         "pitch 偏离应触发 HeadDown Correction"
     );
+}
+
+// ── Track 5：BevyEventSink 端到端事件流 ─────────────────────────
+
+/// 把一次 tick 的 WorkerOutput 走完 event_mapping → BevyEventSink → mpsc，
+/// 验产出的 MonitoringEvent 流和直接调 from_worker_output 一致。
+#[test]
+fn bevy_event_sink_receives_monitoring_events() {
+    let (tx, rx) = mpsc::channel::<MonitoringEvent>();
+    let sink = BevyEventSink::new(tx);
+
+    let mut w = make_worker(0.0, 0.0);
+    let out = w.tick(0.1);
+    for event in event_mapping::from_worker_output(&out) {
+        sink.emit(event);
+    }
+
+    let events: Vec<_> = rx.try_iter().collect();
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            MonitoringEvent::PoseUpdated { pose_state, .. } if pose_state == "FacingScreen"
+        )),
+        "应有 PoseUpdated(FacingScreen), events={events:?}"
+    );
+}
+
+/// 验证偏离 → Correction 时，WarningLevelChanged 和 SoundAlert 也能通过 sink 到达。
+#[test]
+fn bevy_event_sink_receives_correction_events() {
+    let (tx, rx) = mpsc::channel::<MonitoringEvent>();
+    let sink = BevyEventSink::new(tx);
+
+    let mut w = make_worker(6.0, 0.0);
+    // tick 到第一次 correction 触发（>0.3s）
+    for _ in 0..5 {
+        let out = w.tick(0.1);
+        for event in event_mapping::from_worker_output(&out) {
+            sink.emit(event);
+        }
+    }
+
+    let events: Vec<_> = rx.try_iter().collect();
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            MonitoringEvent::WarningLevelChanged { ref level, .. } if level == "correction"
+        )),
+        "应有 WarningLevelChanged(correction), events={events:?}"
+    );
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            MonitoringEvent::SoundAlert { ref alert_type } if alert_type == "posture"
+        )),
+        "应有 SoundAlert(posture), events={events:?}"
+    );
+}
+
+/// 验证摄像头故障时 CameraStateChanged 事件能通过 sink 到达。
+#[test]
+fn bevy_event_sink_receives_camera_unavailable() {
+    let (tx, rx) = mpsc::channel::<MonitoringEvent>();
+    let sink = BevyEventSink::new(tx);
+
+    // 构造一个 camera_ok=false 的输出（无帧时 worker 返回此结果）
+    let output = WorkerOutput {
+        preview: None,
+        camera_ok: false,
+        pose_state: PoseState::NoFace,
+        pitch_state: PoseState::NoFace,
+        yaw: None,
+        pitch: None,
+        warning_level: WarningLevel::Normal,
+        sense_events: Vec::new(),
+    };
+
+    for event in event_mapping::from_worker_output(&output) {
+        sink.emit(event);
+    }
+
+    let events: Vec<_> = rx.try_iter().collect();
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            MonitoringEvent::CameraStateChanged { ref state } if state == "unavailable"
+        )),
+        "应有 CameraStateChanged(unavailable), events={events:?}"
+    );
+}
+
+/// 验证 sink 的发送端断开后 emit 不 panic。
+#[test]
+fn bevy_event_sink_does_not_panic_on_dropped_receiver() {
+    let (tx, rx) = mpsc::channel::<MonitoringEvent>();
+    let sink = BevyEventSink::new(tx);
+    drop(rx);
+
+    // 接收端已掉，发送应静默失败
+    sink.emit(MonitoringEvent::PoseUpdated {
+        yaw: Some(0.0),
+        pitch: Some(0.0),
+        pose_state: "FacingScreen".into(),
+    });
 }

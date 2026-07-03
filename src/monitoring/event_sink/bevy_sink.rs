@@ -1,12 +1,11 @@
 //! `BevyEventSink` —— 把 `MonitoringEvent` 转发到 Bevy 事件总线的实现。
 //!
-//! VS0：类型已定义并实现 `EventSink`，但 `WorkerOrchestrator` 暂不构造它。
-//! VS1+ 接入时，Bevy 端用 `mpsc::Receiver<MonitoringEvent>` 作为资源，
-//! 配合一个 `Update` 系统把事件转成 Bevy `Events<MonitoringEvent>` 写入。
+//! 后台线程的 `WorkerOrchestrator` 持有此 sink，每 tick 把事件通过
+//! mpsc `Sender` 推到 channel。Bevy 主线程的 `forward_monitoring_events`
+//! 系统从 `Receiver` 批量取出事件，写入 `Events<MonitoringEvent>`。
 //!
-//! 设计动机：`EventSink::emit(&self, ...)` 可能在后台线程被调用，
-//! 而 Bevy 的 `EventWriter` 不是 `Send`。通过 `mpsc` 解耦可以保留
-//! 线程安全。
+//! 设计动机：`EventSink::emit(&self, ...)` 在后台线程被调用，
+//! 而 Bevy 的 `EventWriter` 不是 `Send`。通过 `mpsc` 解耦线程安全。
 
 use std::sync::mpsc::Sender;
 

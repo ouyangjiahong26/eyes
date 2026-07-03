@@ -1,9 +1,8 @@
 //! Eyes 应用库入口。
 //!
-//! VS0 tracer bullet：构造一个最小 Bevy App，验证
-//! "Bevy 窗口 + 系统托盘 + 后台 worker 线程"三者能共存并能干净退出。
-//!
-//! 不包含任何监控事件流、UI 内容。
+//! VS1：端到端垂直切片——从摄像头采集到主窗口 UI 文本和图像。
+//! 监控事件经 `BevyEventSink` → mpsc channel → Bevy `Events<MonitoringEvent>`
+//! → ECS 资源 → UI 节点。
 
 pub mod app_shell;
 pub mod app_state;
@@ -16,9 +15,14 @@ use std::sync::{mpsc, Arc, Mutex};
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
+use app_shell::main_view::{
+    forward_monitoring_events, refresh_ui_text, setup_main_view, update_pose_state,
+    update_preview_texture, MonitoringReceiver,
+};
 use app_shell::tray::{spawn_tray, TrayMenuCommand};
 use domain::config::ConfigState;
 use monitoring::channel::WorkerSender;
+use monitoring::events::MonitoringEvent;
 use worker_setup::spawn_worker;
 
 /// 托盘命令通道，作为 Bevy Resource 注入主线程。
@@ -31,7 +35,7 @@ struct TrayCommands(Mutex<mpsc::Receiver<TrayMenuCommand>>);
 #[derive(Resource)]
 struct WorkerHandle(WorkerSender);
 
-/// VS0 用到的全局配置资源。
+/// 全局配置资源。
 #[derive(Resource)]
 struct AppResources {
     config_state: Arc<ConfigState>,
@@ -53,8 +57,18 @@ pub fn run() {
             }),
         )
         .insert_resource(AppResources { config_state })
-        .add_systems(Startup, setup)
-        .add_systems(Update, handle_tray_commands)
+        .add_event::<MonitoringEvent>()
+        .add_systems(Startup, (setup, setup_main_view))
+        .add_systems(
+            Update,
+            (
+                handle_tray_commands,
+                forward_monitoring_events,
+                update_pose_state,
+                update_preview_texture,
+                refresh_ui_text,
+            ),
+        )
         .run();
 }
 
@@ -63,8 +77,12 @@ fn setup(mut commands: Commands, resources: Res<AppResources>) {
     let tray_rx = spawn_tray();
     commands.insert_resource(TrayCommands(Mutex::new(tray_rx)));
 
-    // 后台 worker：NullSink 空转，不接事件流。
-    let worker_tx = spawn_worker(resources.config_state.clone());
+    // 监控事件通道：后台 worker → Bevy 主线程。
+    let (event_tx, event_rx) = mpsc::channel::<MonitoringEvent>();
+    commands.insert_resource(MonitoringReceiver(Mutex::new(event_rx)));
+
+    // 后台 worker：用 BevyEventSink 把监控事件推到上面的 channel。
+    let worker_tx = spawn_worker(resources.config_state.clone(), event_tx);
     commands.insert_resource(WorkerHandle(worker_tx));
 }
 
@@ -85,7 +103,7 @@ fn handle_tray_commands(
                 exit.send(AppExit::Success);
             }
             TrayMenuCommand::Open => {
-                // VS0：窗口默认可见，Open 暂为 no-op。
+                // 窗口默认可见，Open 暂为 no-op。
                 // 后续切片实现窗口隐藏/恢复时在此处理。
             }
         }

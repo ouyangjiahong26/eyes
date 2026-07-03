@@ -1,10 +1,12 @@
 //! 监控事件类型与输出抽象。
 
+use bevy::ecs::event::Event;
+
 use crate::domain::event_log::AppEventKind;
 use crate::monitoring::preview::PreviewFrame;
 
 /// 监控 worker 向外部发射的事件。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Event)]
 pub enum MonitoringEvent {
     CameraStateChanged { state: String },
     PoseUpdated {

@@ -1,8 +1,7 @@
 //! `EventSink` 的不同实现。
 //!
-//! VS0 只定义了 `BevyEventSink` 类型与一个空实现的 `NullSink`。
-//! 后者让 `WorkerOrchestrator` 在没接任何 sink 时也能跑空 tick 循环；
-//! 前者定义了 VS1+ 接入 Bevy 事件总线的形态，本切片暂不构造。
+//! `BevyEventSink` 把监控事件通过 mpsc channel 推到 Bevy 主线程（VS1 起接入）。
+//! `NullSink` 丢弃所有事件，用于测试或不需事件输出的场景。
 
 pub mod bevy_sink;
 
@@ -14,8 +13,8 @@ use crate::monitoring::events::{EventSink, MonitoringEvent};
 
 /// 空事件 sink。所有事件直接丢弃。
 ///
-/// 用途：VS0 让 orchestrator 跑空 tick 循环而无需 Bevy 介入。
-/// 后续切片接 Bevy 事件总线时会被 `BevyEventSink` 替换。
+/// 用于测试或不需要事件输出的场景。VS1 起 `WorkerOrchestrator`
+/// 使用 `BevyEventSink` 替代本类型。
 #[derive(Clone, Default)]
 pub struct NullSink;
 
