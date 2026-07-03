@@ -811,13 +811,6 @@ pub(crate) fn handle_cancel(
     commands.remove_resource::<SettingsDraft>();
 }
 
-/// 校准按钮：VS2 点击不响应（VS3 才接）。
-pub(crate) fn handle_calibrate(
-    _query: Query<&Interaction, (With<CalibrateButton>, Changed<Interaction>)>,
-) {
-    // VS2 不做校准采集
-}
-
 /// 按钮点击 → 发 SaveSettings / CancelSettings 事件。
 pub(crate) fn dispatch_button_click(
     save: Query<&Interaction, (With<SaveButton>, Changed<Interaction>)>,

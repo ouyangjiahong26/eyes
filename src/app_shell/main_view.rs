@@ -352,13 +352,13 @@ pub(crate) fn update_view_visibility(
     if let Ok(mut vis) = main_query.get_single_mut() {
         *vis = match *app_view {
             AppView::Main => Visibility::Visible,
-            AppView::Settings => Visibility::Hidden,
+            AppView::Settings | AppView::Calibration => Visibility::Hidden,
         };
     }
     if let Ok(mut vis) = settings_query.get_single_mut() {
         *vis = match *app_view {
-            AppView::Main => Visibility::Hidden,
             AppView::Settings => Visibility::Visible,
+            AppView::Main | AppView::Calibration => Visibility::Hidden,
         };
     }
 }

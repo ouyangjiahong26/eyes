@@ -23,8 +23,14 @@ use app_shell::main_view::{
     setup_main_view, update_pose_state, update_preview_texture, update_view_visibility,
     MonitoringReceiver,
 };
+use app_shell::calibration_view::{
+    handle_back_to_settings, handle_calibrate, handle_calibration_complete,
+    handle_calibration_failed, handle_cancel_calibration, refresh_calibration_ui,
+    setup_calibration_view, track_calibration_pose, update_calibration_countdown,
+    update_calibration_view_visibility, CalibrationViewState,
+};
 use app_shell::settings_view::{
-    dispatch_button_click, handle_advanced_toggle, handle_autostart_toggle, handle_calibrate,
+    dispatch_button_click, handle_advanced_toggle, handle_autostart_toggle,
     handle_camera_nav, handle_cancel, handle_lang_nav, handle_save, handle_slider_click,
     handle_sound_toggle, refresh_settings_ui, setup_settings_panel, CancelSettings, SaveSettings,
     SettingsPanelState,
@@ -79,10 +85,14 @@ pub fn run() {
         .insert_resource(SettingsPanelState::default())
         .insert_resource(app_shell::AppView::default())
         .insert_resource(SnoozeResource::default())
+        .insert_resource(CalibrationViewState::default())
         .add_event::<MonitoringEvent>()
         .add_event::<SaveSettings>()
         .add_event::<CancelSettings>()
-        .add_systems(Startup, (setup, setup_main_view, setup_settings_panel))
+        .add_systems(
+            Startup,
+            (setup, setup_main_view, setup_settings_panel, setup_calibration_view),
+        )
         .add_systems(
             Update,
             (
@@ -95,6 +105,7 @@ pub fn run() {
                 refresh_localized_text,
                 handle_settings_button_click,
                 update_view_visibility,
+                update_calibration_view_visibility,
                 // 设置面板交互
                 handle_slider_click,
                 handle_camera_nav,
@@ -102,11 +113,24 @@ pub fn run() {
                 handle_sound_toggle,
                 handle_autostart_toggle,
                 handle_advanced_toggle,
-                handle_calibrate,
                 dispatch_button_click,
                 refresh_settings_ui,
                 handle_save,
                 handle_cancel,
+            ),
+        )
+        .add_systems(
+            Update,
+            (
+                // 校准视图交互
+                handle_calibrate,
+                track_calibration_pose,
+                update_calibration_countdown,
+                handle_calibration_complete,
+                handle_calibration_failed,
+                handle_cancel_calibration,
+                handle_back_to_settings,
+                refresh_calibration_ui,
             ),
         )
         .run();
