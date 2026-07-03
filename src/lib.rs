@@ -19,9 +19,12 @@ use app_shell::main_view::{
     forward_monitoring_events, refresh_ui_text, setup_main_view, update_pose_state,
     update_preview_texture, MonitoringReceiver,
 };
+use app_shell::notification::{
+    check_notification_capability, update_system_notification_system, SnoozeResource,
+};
 use app_shell::tray::{spawn_tray, TrayMenuCommand};
 use domain::config::ConfigState;
-use monitoring::channel::WorkerSender;
+use monitoring::channel::{WorkerCommand, WorkerSender};
 use monitoring::events::MonitoringEvent;
 use worker_setup::spawn_worker;
 
@@ -57,6 +60,7 @@ pub fn run() {
             }),
         )
         .insert_resource(AppResources { config_state })
+        .insert_resource(SnoozeResource::default())
         .add_event::<MonitoringEvent>()
         .add_systems(Startup, (setup, setup_main_view))
         .add_systems(
@@ -66,6 +70,7 @@ pub fn run() {
                 forward_monitoring_events,
                 update_pose_state,
                 update_preview_texture,
+                update_system_notification_system,
                 refresh_ui_text,
             ),
         )
@@ -84,12 +89,16 @@ fn setup(mut commands: Commands, resources: Res<AppResources>) {
     // 后台 worker：用 BevyEventSink 把监控事件推到上面的 channel。
     let worker_tx = spawn_worker(resources.config_state.clone(), event_tx);
     commands.insert_resource(WorkerHandle(worker_tx));
+
+    // 通知能力检测：失败只记日志，不阻塞启动。
+    check_notification_capability();
 }
 
 /// 轮询托盘命令，转发为 Bevy 行为。
 fn handle_tray_commands(
     tray: Res<TrayCommands>,
     worker: Res<WorkerHandle>,
+    mut snooze: ResMut<SnoozeResource>,
     mut exit: EventWriter<AppExit>,
 ) {
     let rx = tray.0.lock().unwrap();
@@ -98,13 +107,28 @@ fn handle_tray_commands(
         match cmd {
             TrayMenuCommand::Quit => {
                 // 先通知后台 worker 停止，再触发 Bevy 退出。
-                use crate::monitoring::channel::WorkerCommand;
                 let _ = worker.0.send(WorkerCommand::Stop);
                 exit.send(AppExit::Success);
             }
             TrayMenuCommand::Open => {
                 // 窗口默认可见，Open 暂为 no-op。
                 // 后续切片实现窗口隐藏/恢复时在此处理。
+            }
+            TrayMenuCommand::Pause30Min => {
+                let _ = worker.0.send(WorkerCommand::Snooze(30.0 * 60.0));
+                snooze.paused = true;
+            }
+            TrayMenuCommand::Pause1Hour => {
+                let _ = worker.0.send(WorkerCommand::Snooze(60.0 * 60.0));
+                snooze.paused = true;
+            }
+            TrayMenuCommand::PauseUntilRestart => {
+                let _ = worker.0.send(WorkerCommand::Snooze(f64::INFINITY));
+                snooze.paused = true;
+            }
+            TrayMenuCommand::Resume => {
+                let _ = worker.0.send(WorkerCommand::Resume);
+                snooze.paused = false;
             }
         }
     }

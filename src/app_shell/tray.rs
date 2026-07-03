@@ -13,17 +13,28 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem};
 use tray_icon::{Icon, TrayIconBuilder};
 
-use super::contract::{MENU_QUIT_ID, MENU_SHOW_ID};
+use super::contract::{
+    MENU_PAUSE_30_ID, MENU_PAUSE_60_ID, MENU_PAUSE_INDEFINITE_ID, MENU_QUIT_ID, MENU_RESUME_ID,
+    MENU_SHOW_ID,
+};
 
 /// 托盘菜单项的语义化命令。
 ///
-/// VS0 只关心 Open / Quit 两种行为；其他菜单项后续切片按需扩展。
+/// VS0 只关心 Open / Quit；VS4 扩展了 Pause / Resume 用于 snooze 控制。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayMenuCommand {
     /// 用户点了 "Open"：把主窗口拉回前台。
     Open,
     /// 用户点了 "Quit"：请求干净退出。
     Quit,
+    /// 暂停提醒 30 分钟。
+    Pause30Min,
+    /// 暂停提醒 1 小时。
+    Pause1Hour,
+    /// 暂停提醒直到重启。
+    PauseUntilRestart,
+    /// 恢复提醒。
+    Resume,
 }
 
 /// 启动系统托盘，返回菜单命令的接收端。
@@ -54,10 +65,26 @@ fn run_tray_thread(tx: Sender<TrayMenuCommand>) {
     // 避免阻塞 GTK/muda 的事件分发。
     let tx_open = tx.clone();
     let tx_quit = tx.clone();
+    let tx_pause30 = tx.clone();
+    let tx_pause60 = tx.clone();
+    let tx_pause_inf = tx.clone();
+    let tx_resume = tx.clone();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
         match event.id().as_ref() {
             MENU_SHOW_ID => {
                 let _ = tx_open.send(TrayMenuCommand::Open);
+            }
+            MENU_PAUSE_30_ID => {
+                let _ = tx_pause30.send(TrayMenuCommand::Pause30Min);
+            }
+            MENU_PAUSE_60_ID => {
+                let _ = tx_pause60.send(TrayMenuCommand::Pause1Hour);
+            }
+            MENU_PAUSE_INDEFINITE_ID => {
+                let _ = tx_pause_inf.send(TrayMenuCommand::PauseUntilRestart);
+            }
+            MENU_RESUME_ID => {
+                let _ = tx_resume.send(TrayMenuCommand::Resume);
             }
             MENU_QUIT_ID => {
                 let _ = tx_quit.send(TrayMenuCommand::Quit);
@@ -98,9 +125,20 @@ fn run_tray_thread(tx: Sender<TrayMenuCommand>) {
 
 fn build_menu() -> Menu {
     let show = MenuItem::with_id(MENU_SHOW_ID, "Open", true, None);
+    let pause_30 = MenuItem::with_id(MENU_PAUSE_30_ID, "Pause 30 min", true, None);
+    let pause_60 = MenuItem::with_id(MENU_PAUSE_60_ID, "Pause 1 hour", true, None);
+    let pause_indef = MenuItem::with_id(
+        MENU_PAUSE_INDEFINITE_ID,
+        "Pause until restart",
+        true,
+        None,
+    );
+    let resume = MenuItem::with_id(MENU_RESUME_ID, "Resume", true, None);
     let quit = MenuItem::with_id(MENU_QUIT_ID, "Quit", true, None);
     let menu = Menu::new();
-    let _ = menu.append_items(&[&show, &quit]);
+    let _ = menu.append_items(&[&show]);
+    let _ = menu.append_items(&[&pause_30, &pause_60, &pause_indef, &resume]);
+    let _ = menu.append_items(&[&quit]);
     menu
 }
 
