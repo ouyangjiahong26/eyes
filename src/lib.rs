@@ -1,12 +1,15 @@
 //! Eyes 应用库入口。
 //!
 //! VS1：端到端垂直切片——从摄像头采集到主窗口 UI 文本和图像。
+//! VS2：设置面板（AppView 切换、阈值滑块、摄像头/语言选择、保存/取消、i18n 运行时刷新）。
+//!
 //! 监控事件经 `BevyEventSink` → mpsc channel → Bevy `Events<MonitoringEvent>`
 //! → ECS 资源 → UI 节点。
 
 pub mod app_shell;
 pub mod app_state;
 pub mod domain;
+pub mod i18n;
 pub mod monitoring;
 pub mod worker_setup;
 
@@ -16,11 +19,19 @@ use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
 use app_shell::main_view::{
-    forward_monitoring_events, refresh_ui_text, setup_main_view, update_pose_state,
-    update_preview_texture, MonitoringReceiver,
+    forward_monitoring_events, handle_settings_button_click, refresh_ui_text,
+    setup_main_view, update_pose_state, update_preview_texture, update_view_visibility,
+    MonitoringReceiver,
+};
+use app_shell::settings_view::{
+    dispatch_button_click, handle_advanced_toggle, handle_autostart_toggle, handle_calibrate,
+    handle_camera_nav, handle_cancel, handle_lang_nav, handle_save, handle_slider_click,
+    handle_sound_toggle, refresh_settings_ui, setup_settings_panel, CancelSettings, SaveSettings,
+    SettingsPanelState,
 };
 use app_shell::tray::{spawn_tray, TrayMenuCommand};
 use domain::config::ConfigState;
+use i18n::{refresh_localized_text, I18nTable};
 use monitoring::channel::WorkerSender;
 use monitoring::events::MonitoringEvent;
 use worker_setup::spawn_worker;
@@ -33,17 +44,18 @@ struct TrayCommands(Mutex<mpsc::Receiver<TrayMenuCommand>>);
 
 /// 后台 worker 的命令发送端。退出时发 `Stop`。
 #[derive(Resource)]
-struct WorkerHandle(WorkerSender);
+pub struct WorkerHandle(WorkerSender);
 
-/// 全局配置资源。
+/// 全局配置资源（Arc<ConfigState> 的 Bevy Resource 包装）。
 #[derive(Resource)]
-struct AppResources {
-    config_state: Arc<ConfigState>,
+pub struct AppResources {
+    pub config_state: Arc<ConfigState>,
 }
 
 /// 启动 Eyes 应用。
 pub fn run() {
     let config_state = worker_setup::load_config_state();
+    let language = config_state.get().language.clone();
 
     App::new()
         .add_plugins(
@@ -57,8 +69,13 @@ pub fn run() {
             }),
         )
         .insert_resource(AppResources { config_state })
+        .insert_resource(I18nTable::for_language(&language))
+        .insert_resource(SettingsPanelState::default())
+        .insert_resource(app_shell::AppView::default())
         .add_event::<MonitoringEvent>()
-        .add_systems(Startup, (setup, setup_main_view))
+        .add_event::<SaveSettings>()
+        .add_event::<CancelSettings>()
+        .add_systems(Startup, (setup, setup_main_view, setup_settings_panel))
         .add_systems(
             Update,
             (
@@ -67,6 +84,21 @@ pub fn run() {
                 update_pose_state,
                 update_preview_texture,
                 refresh_ui_text,
+                refresh_localized_text,
+                handle_settings_button_click,
+                update_view_visibility,
+                // 设置面板交互
+                handle_slider_click,
+                handle_camera_nav,
+                handle_lang_nav,
+                handle_sound_toggle,
+                handle_autostart_toggle,
+                handle_advanced_toggle,
+                handle_calibrate,
+                dispatch_button_click,
+                refresh_settings_ui,
+                handle_save,
+                handle_cancel,
             ),
         )
         .run();
