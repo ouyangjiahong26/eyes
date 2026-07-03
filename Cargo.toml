@@ -55,5 +55,20 @@ gtk = "0.18"
 [dev-dependencies]
 tempfile = "3"
 
+# ── Linux 打包（cargo bundle）─────────────────────────────────────
+# `cargo bundle --format deb` / `--format rpm` 读取以下配置产出 Linux 包。
+# 工具本身需单独安装：cargo install cargo-bundle
+[package.metadata.bundle]
+name = "eyes"
+identifier = "com.cislunarspace.eyes"
+category = "Utility"
+short_description = "桌面坐姿监测与护眼提醒工具"
+long_description = "通过摄像头监测头部姿态，提醒你保持正确坐姿、适时休息。"
+# 随可执行文件分发的资源目录：
+#   models/ — ONNX 检测模型（见 models/MANIFEST.toml）
+#   lib/    — ONNX Runtime 动态库（.so），由发布脚本在打包前从 ort 构建产物暂存到此目录
+# OpenCV 不打包：Linux 包声明依赖系统 libopencv（见 build.rs 的 pkg-config 校验）。
+resources = ["models", "lib"]
+
 [profile.release]
 opt-level = 2
