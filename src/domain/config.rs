@@ -5,13 +5,12 @@ use std::{
     sync::{mpsc, Mutex},
 };
 
-/// 应用配置，与 Python 端 AppConfig 共享同一份 config.yaml。
+/// 应用配置，持久化到 config.yaml。
 ///
 /// `roll` → `pitch` 重命名兼容：serde 同时接受 `roll_threshold` / `neutral_roll` 和
 /// `pitch_threshold` / `neutral_pitch`，序列化始终使用 `pitch` 系列。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[ts(export, export_to = "../../src/bindings/")]
 pub struct AppConfig {
     pub yaw_threshold: f64,
     #[serde(alias = "roll_threshold")]

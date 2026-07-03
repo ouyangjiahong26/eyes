@@ -211,6 +211,11 @@ pub struct IPropertyStoreVtbl {
 ///
 /// 优先通过 `IPropertyStore` → `PKEY_Device_FriendlyName` 获取；
 /// 回退到 `IMoniker::GetDisplayName`。
+///
+/// # Safety
+///
+/// `moniker` 必须指向一个有效的、由 COM 创建的 `IMoniker` 实例。
+/// 调用方负责确保 moniker 的生命周期覆盖此函数调用。
 pub unsafe fn get_device_friendly_name(moniker: *mut IMoniker) -> Option<String> {
     let vtable = &*(*moniker).vtable;
 

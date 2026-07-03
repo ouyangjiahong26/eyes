@@ -31,6 +31,12 @@ pub struct AppState {
 /// 跨线程共享的 snooze 标志。
 pub type SharedSnooze = Arc<AtomicBool>;
 
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppState {
     pub fn new() -> Self {
         Self {

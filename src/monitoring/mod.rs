@@ -1,5 +1,6 @@
 pub mod camera_enumerator;
 pub mod detector;
+pub mod event_sink;
 #[cfg(feature = "onnx-detector")]
 mod linalg3;
 #[cfg(feature = "opencv-camera")]
