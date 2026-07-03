@@ -22,6 +22,7 @@ onnx-detector = ["dep:ort", "dep:nalgebra"]
 bevy = { version = "0.15", features = ["x11"] }
 tray-icon = "0.24"
 auto-launch = "0.6"
+notify-rust = "4"
 
 # 序列化（domain 配置、事件、previews）
 base64 = "0.22"
