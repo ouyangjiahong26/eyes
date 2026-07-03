@@ -38,6 +38,62 @@
 
 > 运行时组件已内置（OpenCV、ONNX Runtime、检测模型），无需额外安装。
 
+### Linux 安装
+
+**前置依赖**：Eyes 通过系统 OpenCV 采集摄像头，需先安装 OpenCV 开发包与 `pkg-config`（构建期由 `build.rs` 校验）：
+
+| 发行版 | 命令 |
+|--------|------|
+| Debian / Ubuntu | `sudo apt install libopencv-dev pkg-config` |
+| Fedora / RHEL | `sudo dnf install opencv-devel pkg-config` |
+| Arch | `sudo pacman -S opencv pkgconf` |
+
+> OpenCV 作为系统库提供，**不**打包进发行包。包内仅内置 ONNX Runtime（`.so`）与检测模型。
+
+**桌面环境**：
+
+- KDE / XFCE：托盘与通知开箱即用。
+- GNOME：需安装 AppIndicator 扩展（托盘走 AppIndicator / StatusNotifier 协议）：
+  ```bash
+  sudo apt install gnome-shell-extension-appindicator   # Debian/Ubuntu
+  ```
+  安装后注销重新登录生效。
+
+**安装 .deb / .rpm**：从 [Releases](https://github.com/cislunarspace/eyes/releases) 下载对应包：
+
+```bash
+# Debian / Ubuntu
+sudo dpkg -i eyes_0.4.0_amd64.deb
+sudo apt install -f          # 自动补齐系统依赖
+
+# Fedora / RHEL
+sudo rpm -i eyes-0.4.0.x86_64.rpm
+```
+
+**开机自启**：在设置中开启后写入 `~/.config/autostart/eyes.desktop`（符合 XDG Autostart 规范）；关闭后该文件自动删除。
+
+**卸载**：
+
+```bash
+sudo dpkg -r eyes    # Debian/Ubuntu
+sudo rpm -e eyes     # Fedora/RHEL
+```
+
+卸载只删除应用文件；用户配置保留在 `~/.config/eyes/`，需手动删除。
+
+**从源码构建与打包**：
+
+```bash
+git clone https://github.com/cislunarspace/eyes.git
+cd eyes
+cargo build --release                 # 需先装好 OpenCV 开发包
+cargo install cargo-bundle            # 打包工具（首次）
+cargo bundle --format deb             # 产出 .deb
+cargo bundle --format rpm             # 产出 .rpm
+```
+
+打包前需将 ONNX Runtime 的 `.so` 暂存到 `lib/` 目录（见 `Cargo.toml` 的 `[package.metadata.bundle]`）。
+
 ### 从源码构建
 
 ```bash
