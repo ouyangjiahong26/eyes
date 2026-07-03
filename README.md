@@ -32,11 +32,17 @@
 
 ## 安装
 
-### Windows 安装包
+### Windows
 
-从 [Releases](https://github.com/cislunarspace/eyes/releases) 下载 `.msi` 安装包，双击安装。
+从 [Releases](https://github.com/cislunarspace/eyes/releases) 下载 `.msi` 安装包，双击安装。安装包含可执行文件、检测模型与运行时库（OpenCV、ONNX Runtime），无需额外装任何运行时依赖。
 
-> 运行时组件已内置（OpenCV、ONNX Runtime、检测模型），无需额外安装。
+安装后：
+
+- 开始菜单出现 **Eyes** 快捷方式，双击启动。
+- 启动后系统托盘出现图标。
+- DLL 搜索路径在启动时由 `SetDllDirectoryW` 自动设置，`onnxruntime.dll` / `opencv_world4100.dll` 能被正确加载。
+- 在设置里打开「开机自启」会写注册表项 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Eyes`。
+- 从「设置 → 应用 → 已安装的应用」卸载会干净移除可执行文件、模型与 DLL。用户配置（`%APPDATA%\eyes\`）保留，如需清除请手动删除该目录。
 
 ### Linux 安装
 
@@ -99,19 +105,31 @@ cargo bundle --format rpm             # 产出 .rpm
 ```bash
 git clone https://github.com/cislunarspace/eyes.git
 cd eyes
-npm install
-npm run tauri dev           # 开发模式
-scripts\build-windows.cmd   # 构建 MSI
+cargo run                    # 开发模式
+scripts\build-windows.cmd    # 构建 MSI
 ```
 
-构建需要：
+开发构建（默认 feature，不含摄像头/检测器）只需 Rust，无需 OpenCV / ONNX Runtime：
 
 | 依赖 | 说明 |
 |------|------|
-| Rust | 1.80+ |
-| Node.js | 18+ |
-| OpenCV | 4.x，设置 `OPENCV_LINK_PATHS` |
-| ONNX Runtime | 1.x，设置 `ORT_LIB_LOCATION` 和 `ORT_STRATEGY=system` |
+| Rust | 1.80+（stable）|
+
+完整打包（`scripts\build-windows.cmd`）还需要：
+
+| 依赖 | 说明 |
+|------|------|
+| cargo-wix | `cargo install cargo-wix` |
+| WiX Toolset v3 | `candle.exe` / `light.exe` 加入 PATH |
+| 检测模型 | `models/face_detection_yunet_2023mar.onnx` |
+| 运行时 DLL | `onnxruntime.dll`、`opencv_world4100.dll`（放仓库根目录） |
+
+启用摄像头/检测器 feature 编译时还需：
+
+| 依赖 | 环境变量 |
+|------|---------|
+| OpenCV 4.x | `OPENCV_LINK_PATHS` |
+| ONNX Runtime 1.x | `ORT_LIB_LOCATION`、`ORT_STRATEGY=system` |
 
 ---
 
@@ -163,10 +181,9 @@ scripts\build-windows.cmd   # 构建 MSI
 ## 开发
 
 ```bash
-npm install                                    # 安装依赖
-npm run tauri dev                              # 开发模式
-cd src-tauri && cargo test --no-default-features   # Rust 测试（不需要 OpenCV/ONNX）
-cd src-tauri && cargo clippy --no-default-features # 代码检查
+cargo run                                       # 开发模式（默认 feature，不含摄像头/检测器）
+cargo test --no-default-features                # Rust 测试（不需要 OpenCV/ONNX）
+cargo clippy --no-default-features -- -D warnings  # 代码检查
 ```
 
 ### 架构

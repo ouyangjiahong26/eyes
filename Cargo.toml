@@ -3,6 +3,19 @@ name = "eyes"
 version = "0.4.0"
 edition = "2021"
 default-run = "eyes"
+description = "桌面坐姿监测与护眼提醒工具"
+
+# cargo-wix 配置。`cargo wix` 读取此节生成 MSI。
+# 完整字段见 https://volans-.github.io/cargo-wix/
+[package.metadata.wix]
+# 安装包显示名（控制面板、开始菜单）。
+product-name = "Eyes"
+# 控制面板「发布者」字段。
+manufacturer = "cislunarspace"
+# 安装后 exe 名称。
+upgrade-code-guid = "B7E0F4A2-3C5D-4E6B-9F8A-1D2C3E4F5A6B"
+
+
 
 [lib]
 name = "eyes_lib"

@@ -1,0 +1,153 @@
+<?xml version='1.0' encoding='windows-1252'?>
+<!--
+  VS7 — cargo-wix 安装包模板。
+
+  产出 MSI，包含：
+    - eyes.exe（主程序）
+    - models/face_detection_yunet_2023mar.onnx（YuNet 检测模型）
+    - onnxruntime.dll（ONNX Runtime，ort crate 运行时）
+    - opencv_world4100.dll（OpenCV 运行时）
+
+  约定：打包前把 model 与两个 DLL 拷到 target 输出目录（与 exe 同目录），
+  运行时 SetDllDirectoryW 把该目录加入 DLL 搜索路径，故 DLL 与 exe 同目录即可。
+  scripts/build-windows.cmd 负责拷贝，WiX 这里统一引用 $(var.CargoTargetBinDir)。
+
+  cargo wix 用法：
+    cargo wix                 # 自动 cargo build --release + candle + light
+    cargo wix --no-build      # 跳过 cargo build（需已构建 release）
+
+  前置：model 与 DLL 必须已存在于 target 输出目录。
+
+  注：本机未安装 WiX Toolset，无法实际跑通 candle/light；此模板按 cargo-wix
+  标准约定编写，待 CI（已装 WiX）或装有 toolset 的机器上验证。
+-->
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+  <?ifndef $(var.Platform) ?>
+  <?define Platform = "x64" ?>
+  <?endif ?>
+
+  <?ifndef $(var.Version) ?>
+  <?define Version = "0.4.0" ?>
+  <?endif ?>
+
+  <Product
+    Id='*'
+    Name='$(var.ProductName)'
+    UpgradeCode='$(var.UpgradeCode)'
+    Language='1033'
+    Codepage='1252'
+    Version='$(var.Version)'
+    Manufacturer='$(var.Manufacturer)'>
+
+    <Package Id='*'
+      Keywords='Installer'
+      Description='$(var.Manufacturer) $(var.ProductName) $(var.Version) 安装程序'
+      Manufacturer='$(var.Manufacturer)'
+      InstallerVersion='450'
+      Languages='1033'
+      Compressed='yes'
+      InstallScope='perMachine'
+      Platform='$(var.Platform)' />
+
+    <!-- 允许覆盖安装 / 阻止降级 -->
+    <MajorUpgrade
+      Schedule='afterInstallInitialize'
+      DowngradeErrorMessage='检测到已安装更新版本的 $(var.ProductName)，无法继续降级安装。'
+      AllowSameVersion='yes' />
+
+    <MediaTemplate EmbedCab='yes' />
+
+    <!-- 控制面板「程序和功能」入口图标 + 帮助链接 -->
+    <Icon Id='ICO' SourceFile='$(var.CargoTargetBinDir)$(var.ExeName).exe' />
+    <Property Id='ARPPRODUCTICON' Value='ICO' />
+    <Property Id='ARPHELPLINK' Value='https://github.com/cislunarspace/eyes' />
+    <Property Id='ARPURLINFOABOUT' Value='https://github.com/cislunarspace/eyes' />
+
+    <!-- 安装目录选择：WixUI_InstallDir 读取此属性 -->
+    <Property Id='WIXUI_INSTALLDIR' Value='INSTALLDIR' />
+
+    <Directory Id='TARGETDIR' Name='SourceDir'>
+      <Directory Id='ProgramFiles64Folder' Name='PFiles'>
+        <Directory Id='INSTALLDIR' Name='$(var.ProductName)'>
+          <!-- 子目录：模型文件 -->
+          <Directory Id='MODELSDIR' Name='models' />
+        </Directory>
+      </Directory>
+
+      <!-- 开始菜单快捷方式 -->
+      <Directory Id='ProgramMenuFolder'>
+        <Directory Id='ApplicationProgramsFolder' Name='$(var.ProductName)' />
+      </Directory>
+    </Directory>
+
+    <!-- 主程序 + 运行时 DLL 组件（与 exe 同目录） -->
+    <ComponentGroup Id='ProductComponents' Directory='INSTALLDIR'>
+      <Component Id='MainExecutable' Guid='*' Win64='yes'>
+        <File Id='MainExe'
+          Name='$(var.ExeName).exe'
+          Source='$(var.CargoTargetBinDir)$(var.ExeName).exe'
+          KeyPath='yes'
+          Checksum='yes' />
+      </Component>
+
+      <Component Id='OnnxRuntimeDll' Guid='*' Win64='yes'>
+        <File Id='OnnxRuntimeDllFile'
+          Name='onnxruntime.dll'
+          Source='$(var.CargoTargetBinDir)onnxruntime.dll'
+          KeyPath='yes' />
+      </Component>
+
+      <Component Id='OpenCvDll' Guid='*' Win64='yes'>
+        <File Id='OpenCvDllFile'
+          Name='opencv_world4100.dll'
+          Source='$(var.CargoTargetBinDir)opencv_world4100.dll'
+          KeyPath='yes' />
+      </Component>
+    </ComponentGroup>
+
+    <!-- 模型文件组件 -->
+    <ComponentGroup Id='ModelComponents' Directory='MODELSDIR'>
+      <Component Id='YuNetModel' Guid='*' Win64='yes'>
+        <File Id='YuNetModelFile'
+          Name='face_detection_yunet_2023mar.onnx'
+          Source='$(var.CargoTargetBinDir)face_detection_yunet_2023mar.onnx'
+          KeyPath='yes' />
+      </Component>
+    </ComponentGroup>
+
+    <!-- 开始菜单快捷方式 + 卸载时清理快捷方式目录 -->
+    <DirectoryRef Id='ApplicationProgramsFolder'>
+      <Component Id='ApplicationShortcut' Guid='*' Win64='yes'>
+        <Shortcut Id='ApplicationStartMenuShortcut'
+          Name='$(var.ProductName)'
+          Description='启动 $(var.ProductName)'
+          Target='[INSTALLDIR]$(var.ExeName).exe'
+          WorkingDirectory='INSTALLDIR'
+          Icon='ICO' />
+        <RemoveFolder Id='RemoveApplicationProgramsFolder' On='uninstall' />
+        <RegistryValue Root='HKCU'
+          Key='Software\$(var.Manufacturer)\$(var.ProductName)'
+          Name='installed'
+          Type='integer'
+          Value='1'
+          KeyPath='yes' />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id='Complete' Title='$(var.ProductName)' Level='1'
+      Description='完整安装 $(var.ProductName)，包含检测模型与运行时库。'
+      Display='expand' ConfigurableDirectory='INSTALLDIR'>
+      <Feature Id='MainProgram' Title='主程序' Level='1'>
+        <ComponentGroupRef Id='ProductComponents' />
+        <ComponentRef Id='ApplicationShortcut' />
+      </Feature>
+      <Feature Id='ModelFeature' Title='检测模型' Level='1'
+        Description='YuNet 人脸检测 ONNX 模型（检测功能必需）。'>
+        <ComponentGroupRef Id='ModelComponents' />
+      </Feature>
+    </Feature>
+
+    <!-- 标准安装界面：许可 + 安装目录选择 -->
+    <UIRef Id='WixUI_InstallDir' />
+  </Product>
+</Wix>

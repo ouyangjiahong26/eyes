@@ -6,6 +6,10 @@ Cargo.lock
 models/*
 !models/MANIFEST.toml
 
+# 运行时 DLL（打包前放入仓库根目录，单独获取）
+/onnxruntime.dll
+/opencv_world4100.dll
+
 # OS
 .DS_Store
 Thumbs.db

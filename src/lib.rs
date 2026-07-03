@@ -57,6 +57,9 @@ pub struct AppResources {
 
 /// 启动 Eyes 应用。
 pub fn run() {
+    // VS7：把安装目录加入 DLL 搜索路径，必须在任何 DLL 加载之前完成。
+    app_shell::platform::add_resource_dll_dir();
+
     let config_state = worker_setup::load_config_state();
     let language = config_state.get().language.clone();
 

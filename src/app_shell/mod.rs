@@ -1,6 +1,7 @@
 pub mod contract;
 pub mod main_view;
 pub mod notification;
+pub mod platform;
 pub mod settings_view;
 pub mod tray;
 
