@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.4.0] — 2026-07-03
+
+### 破坏性变更
+
+- **配置目录变更**：从 `com.cislunarspace.eyes`（Tauri identifier 残留）改为 `eyes`（Windows `%APPDATA%\eyes\`，Linux `~/.config/eyes/`）。**旧用户需重新校准中性姿态**，旧配置不会自动迁移。
+- **移除 Tauri / React / WebView / TypeScript / Vite 依赖**：UI 层整体替换为纯 Rust Bevy 应用。
+- **不再需要 Node.js / npm**：构建链路从 Rust + npm + Vite + Tauri 缩减为单一 `cargo build`。
+
+### UI 层重写（Bevy 替换 Tauri）
+
+- 纯 Rust Bevy 0.15 应用：winit 原生窗口、ECS 架构、`DefaultPlugins`
+- `BevyEventSink`：worker 事件经 mpsc channel → Bevy `Events<MonitoringEvent>` 总线
+- 主视图：姿态徽标、实时 yaw/pitch 读数、摄像头预览（水平镜像）、摄像头状态指示
+- 设置面板：阈值滑块、摄像头选择、声音/自启开关、语言切换、高级设置、Save/Cancel
+- 校准视图：5 秒倒计时、采样计数、实时姿态、取消按钮
+- i18n 运行时刷新（中文 / English），TOML 字典
+
+### 新增功能
+
+- **系统通知**（`notify-rust`）：偏头提醒、护眼提醒走系统 toast（Windows WinRT / Linux D-Bus）
+- **声音提醒**（`bevy_kira_audio`）：`build.rs` 生成提示音 wav，`SoundAlert` 事件驱动播放，可独立开关
+- **托盘 Pause/Resume 菜单**：30 分钟 / 1 小时 / 无限静默 / 恢复
+
+### 平台与打包
+
+- **Windows MSI**（`cargo wix`）：可执行文件 + ONNX 模型 + `onnxruntime.dll` + `opencv_world4100.dll`，开始菜单快捷方式，注册卸载项，`SetDllDirectoryW` 管理 DLL 搜索路径
+- **Linux deb / rpm**（`cargo bundle`）：依赖系统 OpenCV，内置 ONNX Runtime `.so` 与模型
+- **Linux autostart**：写 `~/.config/autostart/eyes.desktop`（XDG 规范）
+- `build.rs`：Linux 构建期 `pkg-config opencv4` 校验，失败打印明确指引
+
+### 项目结构
+
+- 扁平 cargo 项目：根 `Cargo.toml` + `src/`
+- 删除 `src-tauri/`、React `src/`、`index.html`、`vite.config.ts`、`tsconfig.json`、`package.json`、`package-lock.json`
+- 领域代码（`domain/*`、`monitoring/orchestrator.rs`、`worker.rs`）原样搬迁，零行为改动
+- 测试 138+ 通过，clippy 零警告
+
+### 相关 ADR
+
+- [ADR-0009 — 用 Bevy 替换 Tauri UI 层](docs/adr/0009-bevy-ui-replacement.md)
+
 ## [0.3.0] — 2026-06-28
 
 ### M7 — Windows 打包

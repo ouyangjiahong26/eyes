@@ -14,7 +14,7 @@ pub enum WorkerCommand {
     Stop,
 }
 
-/// 线程安全的命令发送端，Tauri command handler 通过它向 worker 发指令。
+/// 线程安全的命令发送端，Bevy 系统通过它向 worker 发指令。
 #[derive(Clone)]
 pub struct WorkerSender(std::sync::mpsc::Sender<WorkerCommand>);
 

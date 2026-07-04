@@ -31,7 +31,7 @@ impl SnoozeResource {
 
 /// 启动时检测系统通知能力。失败只记日志，不阻塞应用启动。
 pub fn check_notification_capability() {
-    // notify-rust 在 Windows 走 toast（tauri-winrt-notification），
+    // notify-rust 在 Windows 走 WinRT toast，在 Linux 走 D-Bus。
     // Linux 走 D-Bus。show() 在 Windows 上返回一个 NotificationHandle（异步），
     // 在 Linux 上同步发送后立即返回。失败时只记日志。
     if let Err(e) = notify_rust::Notification::new()
