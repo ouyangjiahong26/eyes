@@ -35,6 +35,7 @@ pub(crate) fn det3x3(m: &[[f64; 3]; 3]) -> f64 {
 /// 3×3 Jacobi SVD。
 ///
 /// 返回 (U, sigma, V^T)，使得 A = U * diag(sigma) * V^T。
+#[allow(clippy::type_complexity)]
 pub(crate) fn svd3x3(a: &[[f64; 3]; 3]) -> Option<([[f64; 3]; 3], [f64; 3], [[f64; 3]; 3])> {
     let ata = mat_transpose_times_self(a);
     let (mut v, s) = jacobi_eigen_3x3(&ata);
@@ -103,21 +104,25 @@ fn jacobi_rotate(s: &mut [[f64; 3]; 3], v: &mut [[f64; 3]; 3], p: usize, q: usiz
     let sqq = s[q][q];
     s[p][p] = spp - t * spq;
     s[q][q] = sqq + t * spq;
-    for r in 0..3 {
+    let mut row_p = s[p];
+    let mut row_q = s[q];
+    for (r, s_row) in s.iter_mut().enumerate() {
         if r != p && r != q {
-            let srp = s[r][p];
-            let srq = s[r][q];
-            s[r][p] = c * srp - st * srq;
-            s[p][r] = s[r][p];
-            s[r][q] = st * srp + c * srq;
-            s[q][r] = s[r][q];
+            let srp = s_row[p];
+            let srq = s_row[q];
+            s_row[p] = c * srp - st * srq;
+            s_row[q] = st * srp + c * srq;
+            row_p[r] = s_row[p];
+            row_q[r] = s_row[q];
         }
     }
-    for r in 0..3 {
-        let vrp = v[r][p];
-        let vrq = v[r][q];
-        v[r][p] = c * vrp - st * vrq;
-        v[r][q] = st * vrp + c * vrq;
+    s[p] = row_p;
+    s[q] = row_q;
+    for v_row in v.iter_mut() {
+        let vrp = v_row[p];
+        let vrq = v_row[q];
+        v_row[p] = c * vrp - st * vrq;
+        v_row[q] = st * vrp + c * vrq;
     }
 }
 
@@ -136,8 +141,8 @@ fn sort_descending(sigma: &mut [f64; 3], v: &mut [[f64; 3]; 3]) {
     let orig_v = *v;
     for (new_i, &old_i) in indices.iter().enumerate() {
         sigma[new_i] = orig_sigma[old_i];
-        for r in 0..3 {
-            v[r][new_i] = orig_v[r][old_i];
+        for (v_row, orig_row) in v.iter_mut().zip(orig_v.iter()) {
+            v_row[new_i] = orig_row[old_i];
         }
     }
 }
@@ -162,15 +167,15 @@ fn orthogonalize_u(mut u: [[f64; 3]; 3], sigma: &[f64; 3]) -> [[f64; 3]; 3] {
     for col in 0..3 {
         if sigma[col] < EPSILON {
             for prev in 0..col {
-                let dot: f64 = (0..3).map(|i| u[i][col] * u[i][prev]).sum();
-                for i in 0..3 {
-                    u[i][col] -= dot * u[i][prev];
+                let dot: f64 = u.iter().map(|row| row[col] * row[prev]).sum();
+                for row in u.iter_mut() {
+                    row[col] -= dot * row[prev];
                 }
             }
-            let norm: f64 = (0..3).map(|i| u[i][col] * u[i][col]).sum::<f64>().sqrt();
+            let norm: f64 = u.iter().map(|row| row[col] * row[col]).sum::<f64>().sqrt();
             if norm > EPSILON {
-                for i in 0..3 {
-                    u[i][col] /= norm;
+                for row in u.iter_mut() {
+                    row[col] /= norm;
                 }
             }
         }

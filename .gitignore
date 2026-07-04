@@ -29,6 +29,9 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Cargo 本地配置（含硬编码路径，只提交 .example 模板）
+.cargo/config.toml
+
 # IDE
 .vscode/
 .idea/

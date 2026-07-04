@@ -5,7 +5,7 @@
 //! 2. 5 个 2D 关键点 + 第 6 点（下巴，由 bbox 估算）→ DLT solvePnP → 旋转矩阵
 //! 3. 从旋转矩阵提取 yaw 和 pitch
 //!
-//! 下巴点由边界框底部中心估算，大角度（>45°）时精度会下降。
+//! 模型输出 12 个张量（3 个尺度 × cls/obj/bbox/kps），anchor-free 解码。
 
 use crate::domain::classifier::HeadPose;
 use crate::monitoring::detector::Detector;
@@ -13,12 +13,11 @@ use super::solve_pnp;
 
 // ── 常量 ───────────────────────────────────────────────────────
 
-/// YuNet 输入尺寸
-const INPUT_W: u32 = 320;
-const INPUT_H: u32 = 240;
+/// YuNet 输入尺寸（正方形）
+const INPUT_SIZE: u32 = 640;
 
-/// YuNet 每个检测的输出宽度：[x, y, w, h, conf, 5×(lx, ly)]
-const YUNET_DETECTION_STRIDE: usize = 15;
+/// 三个特征图步长
+const STRIDES: [u32; 3] = [8, 16, 32];
 
 /// 关键点数量（YuNet 输出）
 const NUM_KEYPOINTS: usize = 5;
@@ -36,10 +35,10 @@ pub struct YuNetDetector {
     session: ort::session::Session,
 }
 
-/// YuNet 单次检测结果。
+/// YuNet 单次检测结果（在原始图像坐标系中）。
 struct Detection {
     landmarks_2d: [[f64; 2]; NUM_KEYPOINTS],
-    bbox: [f32; 4], // x, y, w, h（输入图像坐标）
+    bbox_xyxy: [f64; 4],
 }
 
 impl YuNetDetector {
@@ -57,7 +56,7 @@ impl Detector for YuNetDetector {
     fn detect(&mut self, rgb: &[u8], width: u32, height: u32) -> Option<HeadPose> {
         let input_data = preprocess_rgb(rgb, width, height);
         let tensor = ort::value::Tensor::from_array((
-            [1usize, 3, INPUT_H as usize, INPUT_W as usize],
+            [1usize, 3, INPUT_SIZE as usize, INPUT_SIZE as usize],
             input_data,
         ))
         .ok()?;
@@ -68,10 +67,91 @@ impl Detector for YuNetDetector {
             .run(ort::inputs![input_name.as_str() => tensor])
             .ok()?;
 
-        let output = outputs[0].try_extract_array::<f32>().ok()?;
-        let det = find_best_detection(output.as_slice()?, output.shape(), width, height)?;
+        // 提取 12 个输出张量：每个尺度有 obj/bbox/kps（cls 是单类，与 obj 等价）
+        // 输出索引约定（按 stride 8, 16, 32 分组）：
+        //   cls_8(0), cls_16(1), cls_32(2), obj_8(3), obj_16(4), obj_32(5),
+        //   bbox_8(6), bbox_16(7), bbox_32(8), kps_8(9), kps_16(10), kps_32(11)
+        let mut all_objs: Vec<(Vec<f32>, u32)> = Vec::new();
+        let mut all_bboxes: Vec<Vec<f32>> = Vec::new();
+        let mut all_kps: Vec<Vec<f32>> = Vec::new();
 
-        let points_2d = build_6_point_correspondence(&det, width, height);
+        for (si, &stride) in STRIDES.iter().enumerate() {
+            let obj_idx = 3 + si; // obj_8=3, obj_16=4, obj_32=5
+            let bbox_idx = 6 + si;
+            let kps_idx = 9 + si;
+
+            let obj = extract_flat(&outputs[obj_idx])?;
+            let bbox = extract_flat(&outputs[bbox_idx])?;
+            let kps = extract_flat(&outputs[kps_idx])?;
+
+            let num = obj.len(); // obj shape [1, N, 1]，N = grid_h * grid_w
+            let grid = INPUT_SIZE / stride;
+            debug_assert_eq!(num, (grid * grid) as usize);
+
+            all_objs.push((obj, stride));
+            all_bboxes.push(bbox);
+            all_kps.push(kps);
+        }
+
+        // 在所有 anchor 中找置信度最高的
+        let scale = INPUT_SIZE as f64;
+        let scale_x = width as f64 / scale;
+        let scale_y = height as f64 / scale;
+
+        let mut best_conf = MIN_CONFIDENCE;
+        let mut best: Option<(usize, usize, u32)> = None; // (flat_idx, group, stride)
+
+        for (group, (obj, stride)) in all_objs.iter().enumerate() {
+            for (i, &conf) in obj.iter().enumerate() {
+                if conf > best_conf {
+                    best_conf = conf;
+                    best = Some((i, group, *stride));
+                }
+            }
+        }
+
+        let (flat_idx, group, stride) = best?;
+        let bbox_data = &all_bboxes[group];
+        let kps_data = &all_kps[group];
+
+        let grid = INPUT_SIZE / stride;
+        let gx = flat_idx % grid as usize;
+        let gy = flat_idx / grid as usize;
+
+        // anchor 中心（在 640×640 坐标系中）
+        let cx = gx as f64 * stride as f64;
+        let cy = gy as f64 * stride as f64;
+
+        // 解码 bbox：[dl, dt, dr, db] → xyxy
+        let b = flat_idx * 4;
+        let x1 = (cx - bbox_data[b] as f64) * scale_x;
+        let y1 = (cy - bbox_data[b + 1] as f64) * scale_y;
+        let x2 = (cx + bbox_data[b + 2] as f64) * scale_x;
+        let y2 = (cy + bbox_data[b + 3] as f64) * scale_y;
+
+        // 解码 5 关键点：每个 (dx, dy) 相对 anchor 中心
+        let mut landmarks_2d = [[0.0_f64; 2]; NUM_KEYPOINTS];
+        let k = flat_idx * 10;
+        for j in 0..NUM_KEYPOINTS {
+            landmarks_2d[j] = [
+                (cx + kps_data[k + j * 2] as f64) * scale_x,
+                (cy + kps_data[k + j * 2 + 1] as f64) * scale_y,
+            ];
+        }
+
+        let det = Detection {
+            landmarks_2d,
+            bbox_xyxy: [x1, y1, x2, y2],
+        };
+
+        // 下巴由 bbox 底部中心估算
+        let chin_x = (det.bbox_xyxy[0] + det.bbox_xyxy[2]) / 2.0;
+        let chin_y = det.bbox_xyxy[3];
+
+        let mut points_2d = [[0.0_f64; 2]; 6];
+        points_2d[..NUM_KEYPOINTS].copy_from_slice(&det.landmarks_2d);
+        points_2d[5] = [chin_x, chin_y];
+
         let camera_matrix = estimate_camera_matrix(width, height);
         let rotation = solve_pnp::solve_pnp(&points_2d, &solve_pnp::MODEL_3D, &camera_matrix)?;
         let (yaw, pitch) = solve_pnp::rotation_to_yaw_pitch(&rotation);
@@ -79,83 +159,33 @@ impl Detector for YuNetDetector {
     }
 }
 
-/// 从 YuNet 输出中找置信度最高的人脸检测。
-fn find_best_detection(
-    data: &[f32],
-    shape: &[usize],
-    width: u32,
-    height: u32,
-) -> Option<Detection> {
-    if shape.len() < 3 || shape[2] < YUNET_DETECTION_STRIDE {
-        return None;
-    }
-    let num_detections = shape[1];
-    let scale_x = width as f64 / INPUT_W as f64;
-    let scale_y = height as f64 / INPUT_H as f64;
-
-    let mut best_conf = MIN_CONFIDENCE;
-    let mut best = None;
-
-    for i in 0..num_detections {
-        let base = i * YUNET_DETECTION_STRIDE;
-        let conf = data[base + 4];
-        if conf > best_conf {
-            best_conf = conf;
-            let mut landmarks_2d = [[0.0_f64; 2]; NUM_KEYPOINTS];
-            for j in 0..NUM_KEYPOINTS {
-                landmarks_2d[j] = [
-                    data[base + 5 + j * 2] as f64 * scale_x,
-                    data[base + 5 + j * 2 + 1] as f64 * scale_y,
-                ];
-            }
-            best = Some(Detection {
-                landmarks_2d,
-                bbox: [data[base], data[base + 1], data[base + 2], data[base + 3]],
-            });
-        }
-    }
-    best
-}
-
-/// 将 5 关键点 + 下巴估算组合为 6 点对应关系。
-///
-/// 下巴 = 边界框底部中心。大角度时此估算有误差。
-fn build_6_point_correspondence(det: &Detection, width: u32, height: u32) -> [[f64; 2]; 6] {
-    let scale_x = width as f64 / INPUT_W as f64;
-    let scale_y = height as f64 / INPUT_H as f64;
-    let chin_x = (det.bbox[0] as f64 + det.bbox[2] as f64 / 2.0) * scale_x;
-    let chin_y = (det.bbox[1] as f64 + det.bbox[3] as f64) * scale_y;
-    let mut pts = [[0.0_f64; 2]; 6];
-    pts[..NUM_KEYPOINTS].copy_from_slice(&det.landmarks_2d);
-    pts[5] = [chin_x, chin_y];
-    pts
+/// 从 ort 输出值中提取扁平化的 f32 Vec。
+fn extract_flat(value: &ort::value::Value) -> Option<Vec<f32>> {
+    let arr = value.try_extract_array::<f32>().ok()?;
+    Some(arr.as_slice().unwrap_or(&[]).to_vec())
 }
 
 // ── 预处理 ─────────────────────────────────────────────────────
 
-/// 最近邻缩放 + 转 NCHW float32。
+/// 双线性缩放到 640×640 + 转 NCHW float32（归一化到 0-1）。
 fn preprocess_rgb(rgb: &[u8], width: u32, height: u32) -> Vec<f32> {
-    debug_assert!(
-        rgb.len() >= (width * height * 3) as usize,
-        "rgb buffer 太小: {} < {}",
-        rgb.len(),
-        width * height * 3
-    );
-    let out_w = INPUT_W as usize;
-    let out_h = INPUT_H as usize;
-    let mut buf = vec![0.0f32; 3 * out_h * out_w];
+    let out_size = INPUT_SIZE as usize;
+    let mut buf = vec![0.0f32; 3 * out_size * out_size];
 
-    for oy in 0..out_h {
-        let sy = ((oy as f64 + 0.5) * height as f64 / out_h as f64 - 0.5).round() as u32;
+    let sw = width as f64 / INPUT_SIZE as f64;
+    let sh = height as f64 / INPUT_SIZE as f64;
+
+    for oy in 0..out_size {
+        let sy = ((oy as f64 + 0.5) * sh - 0.5).round().max(0.0) as u32;
         let sy = sy.min(height - 1);
-        for ox in 0..out_w {
-            let sx = ((ox as f64 + 0.5) * width as f64 / out_w as f64 - 0.5).round() as u32;
+        for ox in 0..out_size {
+            let sx = ((ox as f64 + 0.5) * sw - 0.5).round().max(0.0) as u32;
             let sx = sx.min(width - 1);
             let src_idx = ((sy * width + sx) * 3) as usize;
-            let dst_base = oy * out_w + ox;
+            let dst_base = oy * out_size + ox;
             buf[dst_base] = rgb[src_idx] as f32;
-            buf[out_h * out_w + dst_base] = rgb[src_idx + 1] as f32;
-            buf[2 * out_h * out_w + dst_base] = rgb[src_idx + 2] as f32;
+            buf[out_size * out_size + dst_base] = rgb[src_idx + 1] as f32;
+            buf[2 * out_size * out_size + dst_base] = rgb[src_idx + 2] as f32;
         }
     }
     buf
@@ -188,7 +218,7 @@ mod tests {
     fn preprocess_output_size() {
         let rgb = vec![0u8; 640 * 480 * 3];
         let out = preprocess_rgb(&rgb, 640, 480);
-        assert_eq!(out.len(), 3 * 240 * 320);
+        assert_eq!(out.len(), 3 * 640 * 640);
     }
 
     #[test]

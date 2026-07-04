@@ -5,6 +5,11 @@
 
 use std::sync::{mpsc::Sender, Arc};
 
+#[cfg(all(feature = "opencv-camera", feature = "onnx-detector"))]
+use std::path::PathBuf;
+#[cfg(all(feature = "opencv-camera", feature = "onnx-detector"))]
+use crate::app_shell::platform::install_dir;
+
 use crate::app_state::{AppState, SharedAppState};
 use crate::domain::config::ConfigState;
 use crate::domain::paths;
@@ -46,7 +51,7 @@ pub fn spawn_worker(
         }
     });
 
-    // 检测器工厂。VS0 不加载真实模型。
+    // 检测器工厂。
     let detector_factory: DetectorFactory = Box::new(|| {
         #[cfg(all(feature = "opencv-camera", feature = "onnx-detector"))]
         {
@@ -95,7 +100,48 @@ pub fn load_config_state() -> Arc<ConfigState> {
 
 #[cfg(all(feature = "opencv-camera", feature = "onnx-detector"))]
 fn load_onnx_detector() -> Option<Box<dyn crate::monitoring::detector::Detector>> {
-    // VS0 不接入真实模型路径解析；后续切片从资源目录加载。
-    // 这里仅保留接口形状，返回 None。
+    use crate::monitoring::detector::Detector;
+    use crate::monitoring::onnx_detector::YuNetDetector;
+
+    let path = resolve_model_path()?;
+    match YuNetDetector::new(path.to_str().unwrap_or("")) {
+        Ok(detector) => Some(Box::new(detector) as Box<dyn Detector>),
+        Err(e) => {
+            eprintln!("[eyes] 加载 ONNX 检测器失败（路径={}）：{e}", path.display());
+            None
+        }
+    }
+}
+
+#[cfg(all(feature = "opencv-camera", feature = "onnx-detector"))]
+/// 定位 YuNet ONNX 模型文件。
+///
+/// 按以下顺序尝试：
+/// 1. `<exe_dir>/models/face_detection_yunet_2023mar.onnx`（MSI 安装态）
+/// 2. `<exe_dir>/../../models/face_detection_yunet_2023mar.onnx`（cargo run 开发态）
+/// 3. `<cwd>/models/face_detection_yunet_2023mar.onnx`（任意工作目录兜底）
+fn resolve_model_path() -> Option<PathBuf> {
+    const MODEL_NAME: &str = "face_detection_yunet_2023mar.onnx";
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Some(dir) = install_dir() {
+        candidates.push(dir.join("models").join(MODEL_NAME));
+        if let Ok(dev_path) = dir.join("..").join("..").join("models").join(MODEL_NAME).canonicalize() {
+            candidates.push(dev_path);
+        }
+    }
+
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.join("models").join(MODEL_NAME));
+    }
+
+    for path in candidates {
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    eprintln!("[eyes] 找不到 ONNX 模型文件 {MODEL_NAME}；检测功能将不可用");
     None
 }

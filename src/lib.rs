@@ -62,6 +62,10 @@ pub struct AppResources {
     pub config_state: Arc<ConfigState>,
 }
 
+/// 应用字体句柄。使用系统 CJK 字体，使中文/日文/韩文等字符能正确渲染。
+#[derive(Resource)]
+pub struct AppFont(pub Handle<Font>);
+
 /// 启动 Eyes 应用。
 pub fn run() {
     // VS7：把安装目录加入 DLL 搜索路径，必须在任何 DLL 加载之前完成。
@@ -96,9 +100,9 @@ pub fn run() {
             Startup,
             (
                 setup,
-                setup_main_view,
-                setup_settings_panel,
-                setup_calibration_view,
+                setup_main_view.after(setup),
+                setup_settings_panel.after(setup),
+                setup_calibration_view.after(setup),
                 audio::setup_audio,
             ),
         )
@@ -147,7 +151,18 @@ pub fn run() {
         .run();
 }
 
-fn setup(mut commands: Commands, resources: Res<AppResources>) {
+fn setup(
+    mut commands: Commands,
+    resources: Res<AppResources>,
+    mut fonts: ResMut<Assets<Font>>,
+) {
+    // 2D 相机：渲染 UI 所需。
+    commands.spawn(Camera2d);
+
+    // 加载系统 CJK 字体；找不到时回退到 Bevy 默认字体（非 ASCII 会显示为 tofu）。
+    let font_handle = load_system_cjk_font(&mut fonts);
+    commands.insert_resource(AppFont(font_handle));
+
     // 托盘：后台线程构建，命令通过 channel 推回主线程。
     let tray_rx = spawn_tray();
     commands.insert_resource(TrayCommands(Mutex::new(tray_rx)));
@@ -162,6 +177,32 @@ fn setup(mut commands: Commands, resources: Res<AppResources>) {
 
     // 通知能力检测：失败只记日志，不阻塞启动。
     check_notification_capability();
+}
+
+/// 从系统字体目录加载一款支持 CJK 的字体。
+///
+/// Windows 常见中文字体按优先级尝试；全部失败时回退到 Bevy 默认字体
+///（非 ASCII 字符会显示为 tofu，但应用仍可启动）。
+fn load_system_cjk_font(fonts: &mut Assets<Font>) -> Handle<Font> {
+    #[cfg(target_os = "windows")]
+    const CANDIDATES: &[&str] = &[
+        r"C:\Windows\Fonts\NotoSansSC-VF.ttf",
+        r"C:\Windows\Fonts\simhei.ttf",
+        r"C:\Windows\Fonts\simsun.ttc",
+        r"C:\Windows\Fonts\NotoSerifSC-VF.ttf",
+    ];
+    #[cfg(not(target_os = "windows"))]
+    const CANDIDATES: &[&str] = &[];
+
+    for path in CANDIDATES {
+        match std::fs::read(path).and_then(|b| Font::try_from_bytes(b).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))) {
+            Ok(font) => return fonts.add(font),
+            Err(e) => bevy::log::warn!("无法加载字体 {}：{}", path, e),
+        }
+    }
+
+    bevy::log::warn!("未找到系统 CJK 字体，非 ASCII 文本可能显示为方框");
+    Handle::default()
 }
 
 /// 轮询托盘命令，转发为 Bevy 行为。

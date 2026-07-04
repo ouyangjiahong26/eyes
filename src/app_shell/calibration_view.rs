@@ -26,6 +26,7 @@ use bevy::prelude::*;
 use crate::app_shell::settings_view::CalibrateButton;
 use crate::app_shell::AppView;
 use crate::i18n::{I18nTable, LocalizedText};
+use crate::AppFont;
 use crate::monitoring::channel::WorkerCommand;
 use crate::monitoring::events::MonitoringEvent;
 use crate::WorkerHandle;
@@ -102,7 +103,8 @@ pub(crate) struct BackButton;
 // ── 初始化 ─────────────────────────────────────────────────────
 
 /// 构建校准视图 UI 节点树。初始为隐藏。
-pub(crate) fn setup_calibration_view(mut commands: Commands) {
+pub(crate) fn setup_calibration_view(mut commands: Commands, app_font: Res<AppFont>) {
+    let font = app_font.0.clone();
     commands.insert_resource(CalibrationViewState::default());
 
     commands
@@ -124,6 +126,7 @@ pub(crate) fn setup_calibration_view(mut commands: Commands) {
             root.spawn((
                 Text::new("请面向屏幕保持不动…"),
                 TextFont {
+                    font: font.clone(),
                     font_size: 20.0,
                     ..default()
                 },
@@ -139,6 +142,7 @@ pub(crate) fn setup_calibration_view(mut commands: Commands) {
             root.spawn((
                 Text::new("5"),
                 TextFont {
+                    font: font.clone(),
                     font_size: 48.0,
                     ..default()
                 },
@@ -154,6 +158,7 @@ pub(crate) fn setup_calibration_view(mut commands: Commands) {
             root.spawn((
                 Text::new("已采样 0 帧"),
                 TextFont {
+                    font: font.clone(),
                     font_size: 15.0,
                     ..default()
                 },
@@ -169,6 +174,7 @@ pub(crate) fn setup_calibration_view(mut commands: Commands) {
             root.spawn((
                 Text::new("yaw: — / pitch: —"),
                 TextFont {
+                    font: font.clone(),
                     font_size: 15.0,
                     ..default()
                 },
@@ -184,6 +190,7 @@ pub(crate) fn setup_calibration_view(mut commands: Commands) {
             root.spawn((
                 Text::new(""),
                 TextFont {
+                    font: font.clone(),
                     font_size: 16.0,
                     ..default()
                 },
@@ -205,12 +212,14 @@ pub(crate) fn setup_calibration_view(mut commands: Commands) {
                 .with_children(|row| {
                     spawn_button(
                         row,
+                        &font,
                         "calibration.cancel",
                         CancelCalibButton,
                         Color::srgb(0.4, 0.2, 0.2),
                     );
                     spawn_button(
                         row,
+                        &font,
                         "settings.back",
                         BackButton,
                         Color::srgb(0.2, 0.2, 0.24),
@@ -221,6 +230,7 @@ pub(crate) fn setup_calibration_view(mut commands: Commands) {
 
 fn spawn_button(
     parent: &mut ChildBuilder,
+    font: &Handle<Font>,
     label_key: &'static str,
     marker: impl Component,
     bg: Color,
@@ -239,6 +249,7 @@ fn spawn_button(
         .with_child((
             Text::new(label_key),
             TextFont {
+                font: font.clone(),
                 font_size: 15.0,
                 ..default()
             },

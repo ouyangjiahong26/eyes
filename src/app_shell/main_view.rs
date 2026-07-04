@@ -24,6 +24,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use crate::app_shell::settings_view::{SettingsDraft, SettingsPanelState};
 use crate::app_shell::AppView;
 use crate::i18n::{I18nTable, LocalizedText};
+use crate::AppFont;
 use crate::monitoring::camera_enumerator;
 use crate::monitoring::events::MonitoringEvent;
 
@@ -77,7 +78,11 @@ pub(crate) struct SettingsButton;
 // ── 初始化 ─────────────────────────────────────────────────────
 
 /// 创建 UI 节点树，插入初始 `MainViewState` 和占位预览纹理。
-pub(crate) fn setup_main_view(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+pub(crate) fn setup_main_view(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    app_font: Res<AppFont>,
+) {
     // 占位 1×1 黑色纹理
     let placeholder = Image::new(
         Extent3d {
@@ -136,6 +141,7 @@ pub(crate) fn setup_main_view(mut commands: Commands, mut images: ResMut<Assets<
                         badge.spawn((
                             Text::new("—"),
                             TextFont {
+                                font: app_font.0.clone(),
                                 font_size: 18.0,
                                 ..default()
                             },
@@ -148,6 +154,7 @@ pub(crate) fn setup_main_view(mut commands: Commands, mut images: ResMut<Assets<
                     bar.spawn((
                         Text::new("yaw: — / pitch: —"),
                         TextFont {
+                            font: app_font.0.clone(),
                             font_size: 16.0,
                             ..default()
                         },
@@ -197,6 +204,7 @@ pub(crate) fn setup_main_view(mut commands: Commands, mut images: ResMut<Assets<
                 .with_child((
                     Text::new("Camera starting..."),
                     TextFont {
+                        font: app_font.0.clone(),
                         font_size: 14.0,
                         ..default()
                     },
@@ -224,6 +232,7 @@ pub(crate) fn setup_main_view(mut commands: Commands, mut images: ResMut<Assets<
                 .with_child((
                     Text::new("⚙ Settings"),
                     TextFont {
+                        font: app_font.0.clone(),
                         font_size: 14.0,
                         ..default()
                     },
@@ -291,25 +300,34 @@ pub(crate) fn update_preview_texture(
 }
 
 /// 将 `MainViewState` 的值同步到 UI 文本节点（含 i18n 翻译）。
+///
+/// 三个 Query 都请求 `&mut Text`，Bevy 无法仅通过 `With<T>` 过滤器自动证明互斥，
+/// 因此用 `ParamSet` 避免 ECS 冲突（error[B0001]）。
+#[allow(clippy::type_complexity)]
 pub(crate) fn refresh_ui_text(
     state: Res<MainViewState>,
     i18n: Res<I18nTable>,
-    mut pose_query: Query<&mut Text, With<PoseBadgeText>>,
-    mut readout_query: Query<&mut Text, With<ReadoutText>>,
-    mut camera_query: Query<(&mut Text, &LocalizedText), With<CameraStatusText>>,
+    mut queries: ParamSet<(
+        Query<&mut Text, With<PoseBadgeText>>,
+        Query<&mut Text, With<ReadoutText>>,
+        Query<(&mut Text, &LocalizedText), With<CameraStatusText>>,
+    )>,
 ) {
     if !state.is_changed() {
         return;
     }
 
+    let mut pose_query = queries.p0();
     let mut pose_text = pose_query.single_mut();
     pose_text.0 = i18n.t(&state.pose_key).to_string();
 
+    let mut readout_query = queries.p1();
     let mut readout_text = readout_query.single_mut();
     let yaw = state.yaw.map_or("—".into(), |v| format!("{:+.1}°", v));
     let pitch = state.pitch.map_or("—".into(), |v| format!("{:+.1}°", v));
     readout_text.0 = format!("yaw: {} / pitch: {}", yaw, pitch);
 
+    let mut camera_query = queries.p2();
     let (mut cam_text, _) = camera_query.single_mut();
     cam_text.0 = i18n.t(&state.camera_key).to_string();
 }

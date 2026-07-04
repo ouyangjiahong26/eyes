@@ -125,11 +125,52 @@ cargo run --features opencv-camera,onnx-detector
 | 依赖 | Windows | Linux |
 |------|---------|-------|
 | Rust 1.80+（stable） | 必装 | 必装 |
-| OpenCV 4.x | `OPENCV_LINK_PATHS` 指向 `opencv_world4100.dll` 所在目录 | `sudo apt install libopencv-dev`（Debian/Ubuntu）或等价包 |
-| ONNX Runtime 1.x | `ORT_LIB_LOCATION` 指向 `onnxruntime.dll` 所在目录，`ORT_STRATEGY=system` | ONNX Runtime `.so` 放入 `lib/`（见 `Cargo.toml` 的 `[package.metadata.bundle]`） |
-| 检测模型 | `models/face_detection_yunet_2023mar.onnx`（从 [Releases](https://github.com/cislunarspace/eyes/releases) 获取） | 同左 |
+| OpenCV 4.x | `scoop install opencv@4.10.0`，再按下面设置环境变量 | `sudo apt install libopencv-dev`（Debian/Ubuntu）或等价包 |
+| ONNX Runtime 1.x | 开发时 `ort` 自动下载 DirectML 版，无需手动准备 | ONNX Runtime `.so` 放入 `lib/`（见 `Cargo.toml` 的 `[package.metadata.bundle]`） |
+| 检测模型 | `models/face_detection_yunet_2023mar.onnx`（从 [OpenCV Zoo](https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx) 获取） | 同左 |
 
-> Windows 上，把 `onnxruntime.dll` 和 `opencv_world4100.dll` 放在仓库根目录，应用启动时会通过 `SetDllDirectoryW` 自动把它们加入搜索路径。
+#### Windows 完整功能编译步骤
+
+1. **安装 OpenCV 开发库**（推荐用 scoop）：
+   ```powershell
+   scoop install opencv@4.10.0
+   ```
+   这会同时安装 `.lib`、头文件和运行时 DLL。
+
+2. **设置构建环境变量**。每次启动新终端时执行：
+   ```cmd
+   set OPENCV_LINK_LIBS=opencv_world4100
+   set OPENCV_LINK_PATHS=%USERPROFILE%\scoop\apps\opencv\current\x64\vc16\lib
+   set OPENCV_INCLUDE_PATHS=%USERPROFILE%\scoop\apps\opencv\current\include
+   set OPENCV_DISABLE_PROBES=pkg_config,cmake,vcpkg_cmake,vcpkg
+   ```
+   或者在仓库创建 `.cargo/config.toml`：
+   ```toml
+   [env]
+   OPENCV_LINK_LIBS = "opencv_world4100"
+   OPENCV_LINK_PATHS = "C:\\Users\\<你的用户名>\\scoop\\apps\\opencv\\current\\x64\\vc16\\lib"
+   OPENCV_INCLUDE_PATHS = "C:\\Users\\<你的用户名>\\scoop\\apps\\opencv\\current\\include"
+   OPENCV_DISABLE_PROBES = "pkg_config,cmake,vcpkg_cmake,vcpkg"
+   ```
+
+3. **准备检测模型**：
+   ```powershell
+   curl -L -o models/face_detection_yunet_2023mar.onnx `
+     https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
+   ```
+
+4. **把 OpenCV 运行时 DLL 放到 exe 目录**，让 `SetDllDirectoryW` 能找到：
+   ```powershell
+   Copy-Item "$env:USERPROFILE\scoop\apps\opencv\current\x64\vc16\bin\opencv_world4100.dll" `
+             target\debug\opencv_world4100.dll
+   ```
+
+5. **编译并运行**：
+   ```cmd
+   cargo run --features opencv-camera,onnx-detector
+   ```
+
+> **关键区别**：`opencv_world4100.dll` 只是运行时库，编译 `opencv-camera` feature 还需要 OpenCV 的**开发文件**——即 `.lib` 导入库和头文件。只把 `.dll` 放在仓库根目录无法通过 `opencv` crate 的构建探测。
 
 ### 打包
 

@@ -15,6 +15,7 @@ use crate::domain::config::AppConfig;
 use crate::i18n::LocalizedText;
 use crate::monitoring::camera_enumerator::CameraDevice;
 use crate::monitoring::channel::WorkerCommand;
+use crate::AppFont;
 
 // ── 资源 ───────────────────────────────────────────────────────
 
@@ -158,7 +159,9 @@ pub(crate) struct AutostartStateLabel;
 // ── 初始化 ─────────────────────────────────────────────────────
 
 /// 构建设置面板的完整 UI 节点树。初始为隐藏（`Visibility::Hidden`）。
-pub(crate) fn setup_settings_panel(mut commands: Commands) {
+pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont>) {
+    let font = app_font.0.clone();
+
     commands
         .spawn((
             Node {
@@ -176,6 +179,7 @@ pub(crate) fn setup_settings_panel(mut commands: Commands) {
             panel.spawn((
                 Text::new("Settings"),
                 TextFont {
+                    font: font.clone(),
                     font_size: 22.0,
                     ..default()
                 },
@@ -188,9 +192,9 @@ pub(crate) fn setup_settings_panel(mut commands: Commands) {
             ));
 
             // ── yaw 阈值 ─────────────────────────────────────────
-            spawn_slider_row(panel, SliderKind::Yaw, "settings.yaw_threshold");
+            spawn_slider_row(panel, &font, SliderKind::Yaw, "settings.yaw_threshold");
             // ── pitch 阈值 ───────────────────────────────────────
-            spawn_slider_row(panel, SliderKind::Pitch, "settings.pitch_threshold");
+            spawn_slider_row(panel, &font, SliderKind::Pitch, "settings.pitch_threshold");
 
             // ── 校准按钮 ─────────────────────────────────────────
             panel
@@ -201,6 +205,7 @@ pub(crate) fn setup_settings_panel(mut commands: Commands) {
                 .with_children(|row| {
                     spawn_button(
                         row,
+                        &font,
                         "settings.calibrate",
                         CalibrateButton,
                         Color::srgb(0.15, 0.3, 0.5),
@@ -208,10 +213,10 @@ pub(crate) fn setup_settings_panel(mut commands: Commands) {
                 });
 
             // ── 摄像头选择 ───────────────────────────────────────
-            spawn_nav_row(panel, "settings.camera_index", CameraLabel, CameraNav::Prev, CameraNav::Next);
+            spawn_nav_row(panel, &font, "settings.camera_index", CameraLabel, CameraNav::Prev, CameraNav::Next);
 
             // ── 语言选择 ─────────────────────────────────────────
-            spawn_nav_row(panel, "settings.language", LangLabel, LangNav::Prev, LangNav::Next);
+            spawn_nav_row(panel, &font, "settings.language", LangLabel, LangNav::Prev, LangNav::Next);
 
             // ── 声音开关 ─────────────────────────────────────────
             panel
@@ -225,7 +230,7 @@ pub(crate) fn setup_settings_panel(mut commands: Commands) {
                 .with_children(|row| {
                     row.spawn((
                         Text::new("Sound"),
-                        TextFont { font_size: 16.0, ..default() },
+                        TextFont { font: font.clone(), font_size: 16.0, ..default() },
                         TextColor(Color::srgb(0.8, 0.8, 0.8)),
                         LocalizedText("settings.sound_enabled"),
                     ));
@@ -245,7 +250,7 @@ pub(crate) fn setup_settings_panel(mut commands: Commands) {
                 .with_children(|row| {
                     row.spawn((
                         Text::new("Autostart"),
-                        TextFont { font_size: 16.0, ..default() },
+                        TextFont { font: font.clone(), font_size: 16.0, ..default() },
                         TextColor(Color::srgb(0.8, 0.8, 0.8)),
                         LocalizedText("settings.autostart_enabled"),
                     ));
@@ -270,7 +275,7 @@ pub(crate) fn setup_settings_panel(mut commands: Commands) {
                 ))
                 .with_child((
                     Text::new("Advanced"),
-                    TextFont { font_size: 15.0, ..default() },
+                    TextFont { font: font.clone(), font_size: 15.0, ..default() },
                     TextColor(Color::srgb(0.7, 0.7, 0.7)),
                     LocalizedText("settings.advanced"),
                 ));
@@ -287,8 +292,8 @@ pub(crate) fn setup_settings_panel(mut commands: Commands) {
                     AdvancedSection,
                 ))
                 .with_children(|adv| {
-                    spawn_slider_row(adv, SliderKind::Streak, "settings.streak_threshold");
-                    spawn_slider_row(adv, SliderKind::Repeat, "settings.repeat_interval");
+                    spawn_slider_row(adv, &font, SliderKind::Streak, "settings.streak_threshold");
+                    spawn_slider_row(adv, &font, SliderKind::Repeat, "settings.repeat_interval");
                 });
 
             // ── 底部按钮 ─────────────────────────────────────────
@@ -300,14 +305,19 @@ pub(crate) fn setup_settings_panel(mut commands: Commands) {
                     ..default()
                 })
                 .with_children(|row| {
-                    spawn_button(row, "settings.save", SaveButton, Color::srgb(0.2, 0.4, 0.2));
-                    spawn_button(row, "settings.cancel", CancelButton, Color::srgb(0.4, 0.2, 0.2));
+                    spawn_button(row, &font, "settings.save", SaveButton, Color::srgb(0.2, 0.4, 0.2));
+                    spawn_button(row, &font, "settings.cancel", CancelButton, Color::srgb(0.4, 0.2, 0.2));
                 });
         });
 }
 
 /// 生成一行：标签 + 滑块轨道 + 值文本。
-fn spawn_slider_row(parent: &mut ChildBuilder, kind: SliderKind, label_key: &'static str) {
+fn spawn_slider_row(
+    parent: &mut ChildBuilder,
+    font: &Handle<Font>,
+    kind: SliderKind,
+    label_key: &'static str,
+) {
     parent
         .spawn(Node {
             flex_direction: FlexDirection::Column,
@@ -325,13 +335,13 @@ fn spawn_slider_row(parent: &mut ChildBuilder, kind: SliderKind, label_key: &'st
             .with_children(|label_row| {
                 label_row.spawn((
                     Text::new(label_key),
-                    TextFont { font_size: 15.0, ..default() },
+                    TextFont { font: font.clone(), font_size: 15.0, ..default() },
                     TextColor(Color::srgb(0.8, 0.8, 0.8)),
                     LocalizedText(label_key),
                 ));
                 label_row.spawn((
                     Text::new("—"),
-                    TextFont { font_size: 15.0, ..default() },
+                    TextFont { font: font.clone(), font_size: 15.0, ..default() },
                     TextColor(Color::srgb(0.9, 0.9, 0.9)),
                     SliderValueText(kind),
                 ));
@@ -365,6 +375,7 @@ fn spawn_slider_row(parent: &mut ChildBuilder, kind: SliderKind, label_key: &'st
 /// 生成一行：标签 + Prev 按钮 + 当前值 + Next 按钮。
 fn spawn_nav_row(
     parent: &mut ChildBuilder,
+    font: &Handle<Font>,
     label_key: &'static str,
     label_marker: impl Component,
     prev: impl Component + Clone,
@@ -381,7 +392,7 @@ fn spawn_nav_row(
         .with_children(|row| {
             row.spawn((
                 Text::new(label_key),
-                TextFont { font_size: 16.0, ..default() },
+                TextFont { font: font.clone(), font_size: 16.0, ..default() },
                 TextColor(Color::srgb(0.8, 0.8, 0.8)),
                 LocalizedText(label_key),
             ));
@@ -396,7 +407,7 @@ fn spawn_nav_row(
                 spawn_nav_button(nav, "‹", prev);
                 nav.spawn((
                     Text::new("—"),
-                    TextFont { font_size: 15.0, ..default() },
+                    TextFont { font: font.clone(), font_size: 15.0, ..default() },
                     TextColor(Color::WHITE),
                     Node {
                         width: Val::Px(180.0),
@@ -427,6 +438,7 @@ fn spawn_nav_button(parent: &mut ChildBuilder, _label: &str, nav: impl Component
 
 fn spawn_button(
     parent: &mut ChildBuilder,
+    font: &Handle<Font>,
     label_key: &'static str,
     marker: impl Component,
     bg: Color,
@@ -444,7 +456,7 @@ fn spawn_button(
         ))
         .with_child((
             Text::new(label_key),
-            TextFont { font_size: 15.0, ..default() },
+            TextFont { font: font.clone(), font_size: 15.0, ..default() },
             TextColor(Color::WHITE),
             LocalizedText(label_key),
         ));
@@ -610,13 +622,19 @@ pub(crate) fn handle_advanced_toggle(
 }
 
 /// 把 draft 的当前值同步到 UI：滑块填充宽度、值文本、开关指示器。
+///
+/// 多个 Query 都请求 `&mut Text`，Bevy 无法自动证明互斥，用 `ParamSet` 避免
+/// ECS 冲突（error[B0001]）。
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::type_complexity)]
 pub(crate) fn refresh_settings_ui(
     draft: Option<Res<SettingsDraft>>,
     mut fill_query: Query<(&SliderFill, &mut Node)>,
-    mut value_query: Query<(&SliderValueText, &mut Text)>,
-    mut camera_label: Query<&mut Text, With<CameraLabel>>,
-    mut lang_label: Query<&mut Text, With<LangLabel>>,
+    mut text_queries: ParamSet<(
+        Query<(&SliderValueText, &mut Text)>,
+        Query<&mut Text, With<CameraLabel>>,
+        Query<&mut Text, With<LangLabel>>,
+    )>,
     mut sound_state: Query<&mut BackgroundColor, (With<SoundToggle>, Without<SoundStateLabel>)>,
     mut autostart_state: Query<
         &mut BackgroundColor,
@@ -661,6 +679,7 @@ pub(crate) fn refresh_settings_ui(
         node.width = Val::Percent(frac as f32 * 100.0);
 
         // 更新对应的值文本
+        let mut value_query = text_queries.p0();
         for (value_text, mut text) in &mut value_query {
             if value_text.0 == fill.0 {
                 text.0 = label.clone();
@@ -669,6 +688,7 @@ pub(crate) fn refresh_settings_ui(
     }
 
     // 摄像头名称
+    let mut camera_label = text_queries.p1();
     if let Ok(mut label) = camera_label.get_single_mut() {
         let name = draft
             .camera_list
@@ -680,6 +700,7 @@ pub(crate) fn refresh_settings_ui(
     }
 
     // 语言名称
+    let mut lang_label = text_queries.p2();
     if let Ok(mut label) = lang_label.get_single_mut() {
         let display = LANGUAGES
             .iter()
