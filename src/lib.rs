@@ -8,6 +8,7 @@
 
 pub mod app_shell;
 pub mod app_state;
+pub mod audio;
 pub mod domain;
 pub mod i18n;
 pub mod monitoring;
@@ -80,6 +81,8 @@ pub fn run() {
                 ..default()
             }),
         )
+        // VS5：bevy_kira_audio 取代 bevy 自带音频插件（见 Cargo.toml 中已禁用 bevy_audio）。
+        .add_plugins(bevy_kira_audio::AudioPlugin)
         .insert_resource(AppResources { config_state })
         .insert_resource(I18nTable::for_language(&language))
         .insert_resource(SettingsPanelState::default())
@@ -91,7 +94,13 @@ pub fn run() {
         .add_event::<CancelSettings>()
         .add_systems(
             Startup,
-            (setup, setup_main_view, setup_settings_panel, setup_calibration_view),
+            (
+                setup,
+                setup_main_view,
+                setup_settings_panel,
+                setup_calibration_view,
+                audio::setup_audio,
+            ),
         )
         .add_systems(
             Update,
@@ -133,6 +142,8 @@ pub fn run() {
                 refresh_calibration_ui,
             ),
         )
+        // VS5：声音提醒（独立一组，避免单组系统数超过 Bevy 的元组上限）。
+        .add_systems(Update, audio::play_sound_alert_system)
         .run();
 }
 
