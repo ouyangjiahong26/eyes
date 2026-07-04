@@ -9,6 +9,29 @@ models/*
 # 运行时 DLL（打包前放入仓库根目录，单独获取）
 /onnxruntime.dll
 /opencv_world4100.dll
+/lib/
+
+# 旧代码与前端产物（0.4.0 迁移遗留）
+node_modules/
+dist/
+.vite/
+*.log
+src-tauri/
+
+# Python 残留
+__pycache__/
+*.py[cod]
+.venv/
+
+# 测试与覆盖率
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
 
 # OS
 .DS_Store
