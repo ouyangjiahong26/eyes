@@ -5,7 +5,7 @@
 **桌面坐姿监测与护眼提醒工具**
 
 [![Rust](https://img.shields.io/badge/Rust-2021-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![Bevy](https://img.shields.io/badge/Bevy-0.15-1F2F35?logo=bevy&logoColor=white)](https://bevyengine.org/)
+[![Tauri 2](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)](https://tauri.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 *通过摄像头监测头部姿态，提醒你保持正确坐姿、适时休息。*
@@ -28,7 +28,6 @@
 - **坐姿纠正** — 偏离一段时间后提醒，之后定时重复
 - **坐姿表扬** — 正对屏幕累计 5 分钟后鼓励
 - **护眼提醒** — 检测到人脸累计 15 分钟后提醒远眺
-- **声音提醒** — 可选提示音（与系统通知独立开关）
 - **静默模式** — 暂停提醒 30 分钟、1 小时或手动恢复
 
 ## 安装
@@ -45,7 +44,7 @@
 - 在设置里打开「开机自启」会写注册表项 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Eyes`。
 - 从「设置 → 应用 → 已安装的应用」卸载会干净移除可执行文件、模型与 DLL。用户配置（`%APPDATA%\eyes\`）保留，如需清除请手动删除该目录。
 
-### Linux
+### Linux 安装
 
 **前置依赖**：Eyes 通过系统 OpenCV 采集摄像头，需先安装 OpenCV 开发包与 `pkg-config`（构建期由 `build.rs` 校验）：
 
@@ -101,28 +100,22 @@ cargo bundle --format rpm             # 产出 .rpm
 
 打包前需将 ONNX Runtime 的 `.so` 暂存到 `lib/` 目录（见 `Cargo.toml` 的 `[package.metadata.bundle]`）。
 
-### 从源码构建（开发）
+### 从源码构建
 
 ```bash
 git clone https://github.com/cislunarspace/eyes.git
 cd eyes
-cargo run                             # 开发模式（默认 feature）
+cargo run                    # 开发模式
+scripts\build-windows.cmd    # 构建 MSI
 ```
 
-开发构建（默认 feature，不含摄像头/检测器）只需 Rust：
+开发构建（默认 feature，不含摄像头/检测器）只需 Rust，无需 OpenCV / ONNX Runtime：
 
 | 依赖 | 说明 |
 |------|------|
 | Rust | 1.80+（stable）|
 
-完整功能（`--features opencv-camera,onnx-detector`）还需要：
-
-| 依赖 | 环境变量 / 说明 |
-|------|---------|
-| OpenCV 4.x | `OPENCV_LINK_PATHS`（Windows）；系统 `libopencv-dev`（Linux）|
-| ONNX Runtime 1.x | `ORT_LIB_LOCATION`、`ORT_STRATEGY=system`（Windows）；打包进 .so（Linux）|
-
-Windows MSI 打包（`scripts\build-windows.cmd`）还需要：
+完整打包（`scripts\build-windows.cmd`）还需要：
 
 | 依赖 | 说明 |
 |------|------|
@@ -131,48 +124,43 @@ Windows MSI 打包（`scripts\build-windows.cmd`）还需要：
 | 检测模型 | `models/face_detection_yunet_2023mar.onnx` |
 | 运行时 DLL | `onnxruntime.dll`、`opencv_world4100.dll`（放仓库根目录） |
 
+启用摄像头/检测器 feature 编译时还需：
+
+| 依赖 | 环境变量 |
+|------|---------|
+| OpenCV 4.x | `OPENCV_LINK_PATHS` |
+| ONNX Runtime 1.x | `ORT_LIB_LOCATION`、`ORT_STRATEGY=system` |
+
 ---
 
 ## 使用说明
 
-应用启动后在系统托盘运行，通过摄像头检测头部姿态。摄像头不可用时每 5 秒自动重试。
+应用启动后在系统托盘运行，通过摄像头检测头部姿态。摄像头不可用时自动重试。
 
 ### 系统托盘菜单
 
-- **打开** — 把主窗口拉回前台
 - **静默 30 分钟 / 1 小时 / 无限静默** — 暂停提醒
 - **恢复** — 提前结束静默
-- **退出** — 完全退出应用（其他操作都不会终止进程）
-
-### 主窗口
-
-- 姿态徽标（正对屏幕 / 头偏左 / 头偏右 / 仰头 / 低头 / 检测到人脸）
-- 实时偏航 / 俯仰读数
-- 摄像头预览（水平镜像，selfie view）
-- 摄像头不可用时的状态指示
-- ⚙ 设置入口
+- **设置** — 打开设置页面
+- **退出** — 完全退出应用
 
 ### 中性校准
 
-在设置中点「开始校准」，面对屏幕保持放松姿势 5 秒，应用自动记录你的个人基准。校准期间有倒计时与实时采样数显示；可取消。
+面对屏幕保持放松姿势 5 秒，应用自动记录你的个人基准。也可在设置中手动触发。
 
 ---
 
 ## 设置
 
-在主窗口点 ⚙ 进入设置面板。
+通过托盘菜单打开设置。
 
 | 设置项 | 说明 |
 |--------|------|
-| 偏航阈值 | 转头容差（度，1–30）。超出则判定偏离。 |
-| 俯仰阈值 | 抬头/低头容差（度，1–30）。超出则判定偏离。 |
+| 偏航阈值 | 转头容差（度）。超出则判定偏离。 |
+| 俯仰阈值 | 抬头/低头容差（度）。超出则判定偏离。 |
 | 摄像头 | 选择摄像头设备。 |
-| 声音提醒 | 开 / 关提示音。 |
-| 开机自启 | 随系统启动（Windows 写注册表，Linux 写 `.desktop`）。 |
-| 语言 | 中文 / English（切换后立即刷新） |
-| 高级 | 偏离首次提醒秒数、重复间隔秒数 |
-
-**保存** 写入配置并即时下发到 worker；**取消** 丢弃修改。
+| 语言 | 中文 / English |
+| 开机自启 | 随系统启动（Windows 用户级）。 |
 
 ---
 
@@ -183,51 +171,37 @@ Windows MSI 打包（`scripts\build-windows.cmd`）还需要：
 | 平台 | 路径 |
 |------|------|
 | Windows | `%APPDATA%\eyes\config.yaml` |
+| macOS | `~/Library/Application Support/eyes/config.yaml` |
 | Linux | `~/.config/eyes/config.yaml` |
 
-事件日志（JSONL 格式）写入同一目录。
-
-> **0.4.0 破坏性变更**：配置目录从 0.3.0 的 `com.cislunarspace.eyes`（Tauri identifier 残留）改为 `eyes`。旧用户需重新校准中性姿态。详见 [CHANGELOG](CHANGELOG.md)。
+事件日志（JSONL 格式）也写入同一目录。
 
 ---
 
 ## 开发
 
 ```bash
-cargo run                                          # 开发模式（默认 feature，不含摄像头/检测器）
-cargo test --no-default-features                   # 领域测试（不需要 OpenCV/ONNX）
+cargo run                                       # 开发模式（默认 feature，不含摄像头/检测器）
+cargo test --no-default-features                # Rust 测试（不需要 OpenCV/ONNX）
 cargo clippy --no-default-features -- -D warnings  # 代码检查
 ```
 
 ### 架构
 
-纯 Rust 应用：Bevy 0.15 负责窗口、UI、事件总线与音频；后台 worker 线程跑监控管道。
-
 ```text
-src/
-├── main.rs                   二进制入口
-├── lib.rs                    Bevy App 构造、系统调度
-├── app_shell/                应用壳层
-│   ├── main_view.rs          主视图 UI（姿态徽标、预览、Settings 按钮）
-│   ├── settings_view.rs      设置面板 UI
-│   ├── calibration_view.rs   校准视图 UI
-│   ├── notification.rs       系统通知（notify-rust）
-│   ├── tray.rs               系统托盘
-│   ├── platform.rs           Windows DLL 搜索路径、autostart
-│   └── contract.rs           托盘菜单项 ID 常量
-├── audio/                    声音提醒（bevy_kira_audio）
-├── i18n/                     国际化（zh.toml / en.toml）
-├── app_state.rs              共享状态容器
-├── worker_setup.rs           后台 worker 启动
-├── domain/                   纯领域逻辑（分类、计时、校准、配置、事件日志、静默）
-└── monitoring/               摄像头、检测器、worker、事件桥接
-    ├── event_sink/           EventSink trait + BevyEventSink
-    ├── orchestrator.rs       WorkerOrchestrator
-    ├── worker.rs             MonitoringWorker
-    └── ...
-tests/                        行为测试
-models/                       ONNX 模型文件
-docs/                         ADR、PRD、迁移计划
+src-tauri/                   Rust 后端 (Tauri 2)
+├── src/
+│   ├── lib.rs               应用入口、Tauri Builder 配置
+│   ├── app_state.rs         共享状态容器
+│   ├── commands.rs          Tauri commands + 后台 worker
+│   ├── app_shell/           托盘、窗口、事件
+│   ├── domain/              纯领域逻辑（分类、计时、校准、配置）
+│   └── monitoring/          摄像头、检测器、worker
+└── tests/                   行为测试
+
+src/                         React + TypeScript 前端
+models/                      ONNX 模型文件
+docs/                        ADR、PRD、迁移计划
 ```
 
 ### 数据流
@@ -240,10 +214,8 @@ docs/                         ADR、PRD、迁移计划
   → classifier::classify(pose, config)
     → PoseState (FacingScreen / OffAxisLeft / ...)
   → PostureTickEngine.tick(yaw_state, pitch_state, dt)
-    → 计时器推进 → MonitoringEvent 列表
-  → BevyEventSink (mpsc channel)
-  → Bevy Events<MonitoringEvent>
-  → UI 节点 / 系统通知 / 声音提醒
+    → 计时器推进 → 生成 SenseEvent 列表
+  → 前端事件 (pose-updated / correction / good-posture / eye-rest)
 ```
 
 循环频率约 10 Hz（每 tick 100ms）。
@@ -256,9 +228,9 @@ docs/                         ADR、PRD、迁移计划
 
 **摄像头被其他应用占用？** 每 5 秒自动重试。关闭占用摄像头的应用（Zoom、Teams 等）后自动恢复。
 
-**阈值太严 / 太松？** 主窗口点 ⚙ 进入**设置**，调整阈值。
+**阈值太严 / 太松？** 从托盘菜单打开**设置**，调整阈值。
 
-**卸载后配置还在吗？** 卸载只删除应用文件，用户配置保留在 `%APPDATA%\eyes\`（Windows）或 `~/.config/eyes/`（Linux）。如需清除，手动删除该目录。
+**卸载后配置还在吗？** 卸载只删除应用文件，用户配置保留在 `%APPDATA%\eyes\`。如需清除，手动删除该目录。
 
 ## 许可证
 

@@ -1,16 +1,14 @@
-# Frontend/Tauri build artifacts
-node_modules/
-dist/
-src-tauri/target/
-__pycache__/
+# Rust build artifacts
+target/
+Cargo.lock
 
 # ONNX models (obtained separately, bundled at build time)
 models/*
 !models/MANIFEST.toml
 
-# Native DLLs (copied by build.rs at build time)
-src-tauri/onnxruntime.dll
-src-tauri/opencv_world*.dll
+# 运行时 DLL（打包前放入仓库根目录，单独获取）
+/onnxruntime.dll
+/opencv_world4100.dll
 
 # OS
 .DS_Store

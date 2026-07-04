@@ -1,0 +1,132 @@
+[package]
+name = "eyes"
+version = "0.4.0"
+edition = "2021"
+default-run = "eyes"
+description = "桌面坐姿监测与护眼提醒工具"
+
+# cargo-wix 配置。`cargo wix` 读取此节生成 MSI。
+# 完整字段见 https://volans-.github.io/cargo-wix/
+[package.metadata.wix]
+# 安装包显示名（控制面板、开始菜单）。
+product-name = "Eyes"
+# 控制面板「发布者」字段。
+manufacturer = "cislunarspace"
+# 安装后 exe 名称。
+upgrade-code-guid = "B7E0F4A2-3C5D-4E6B-9F8A-1D2C3E4F5A6B"
+
+
+
+[lib]
+name = "eyes_lib"
+# Bevy 编译需要 rlib；cdylib 暂不需要。
+crate-type = ["rlib"]
+
+[features]
+# VS0：默认不启用摄像头和检测器；构建快，CI 也能跑
+default = []
+opencv-camera = ["dep:opencv"]
+onnx-detector = ["dep:ort", "dep:nalgebra"]
+
+[dependencies]
+# Bevy 桌面引擎。VS0 用 DefaultPlugins 创建原生窗口；
+# 默认 features 包含渲染、winit、窗口等，能直接弹出一个空白窗口。
+# 后续切片如需缩减编译时间可裁剪 features。
+#
+# VS5：禁用默认的 `bevy_audio`/`vorbis`。bevy_kira_audio 与 bevy 自带音频插件
+# 冲突（两者都注册 Audio 资源），必须关掉前者改用 kira。下面显式列回除音频外
+# 的全部默认 feature，保证其余行为不变。
+bevy = { version = "0.15", default-features = false, features = [
+    "android-game-activity",
+    "android_shared_stdcxx",
+    "animation",
+    "bevy_asset",
+    "bevy_color",
+    "bevy_core_pipeline",
+    "bevy_gilrs",
+    "bevy_gizmos",
+    "bevy_gltf",
+    "bevy_mesh_picking_backend",
+    "bevy_pbr",
+    "bevy_picking",
+    "bevy_render",
+    "bevy_scene",
+    "bevy_sprite",
+    "bevy_sprite_picking_backend",
+    "bevy_state",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_ui_picking_backend",
+    "bevy_window",
+    "bevy_winit",
+    "custom_cursor",
+    "default_font",
+    "hdr",
+    "multi_threaded",
+    "png",
+    "smaa_luts",
+    "sysinfo_plugin",
+    "tonemapping_luts",
+    "webgl2",
+    "x11",
+] }
+tray-icon = "0.24"
+auto-launch = "0.6"
+notify-rust = "4"
+
+# VS5：声音提醒。bevy_kira_audio 通过 kira 播放 wav；
+# kira 版本须与 bevy_kira_audio 0.22 内置的 0.9.6 对齐，直接引用以构造
+# StaticSoundData（从嵌入的 wav 字节解码）。
+bevy_kira_audio = { version = "0.22", default-features = false, features = ["wav"] }
+kira = { version = "0.9", default-features = false, features = ["cpal", "wav"] }
+
+# 序列化（domain 配置、事件、previews）
+base64 = "0.22"
+png = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# 后端基础
+time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
+dirs = "6"
+
+# 摄像头与检测器（feature-gated）
+opencv = { version = "0.99", optional = true }
+ort = { version = "=2.0.0-rc.12", optional = true }
+nalgebra = { version = "0.33", optional = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_UI_Shell_PropertiesSystem",
+] }
+
+# tray-icon 在 Linux 上要 GTK 主循环；因为 Bevy 主线程跑 winit，
+# 托盘必须在自己的线程里 init + main，所以这里直接用 gtk crate。
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
+[dev-dependencies]
+tempfile = "3"
+
+# ── Linux 打包（cargo bundle）─────────────────────────────────────
+# `cargo bundle --format deb` / `--format rpm` 读取以下配置产出 Linux 包。
+# 工具本身需单独安装：cargo install cargo-bundle
+[package.metadata.bundle]
+name = "eyes"
+identifier = "com.cislunarspace.eyes"
+category = "Utility"
+short_description = "桌面坐姿监测与护眼提醒工具"
+long_description = "通过摄像头监测头部姿态，提醒你保持正确坐姿、适时休息。"
+# 随可执行文件分发的资源目录：
+#   models/ — ONNX 检测模型（见 models/MANIFEST.toml）
+#   lib/    — ONNX Runtime 动态库（.so），由发布脚本在打包前从 ort 构建产物暂存到此目录
+# OpenCV 不打包：Linux 包声明依赖系统 libopencv（见 build.rs 的 pkg-config 校验）。
+resources = ["models", "lib"]
+
+[profile.release]
+opt-level = 2
