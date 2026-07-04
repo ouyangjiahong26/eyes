@@ -101,35 +101,58 @@ cargo bundle --format rpm             # 产出 .rpm
 
 打包前需将 ONNX Runtime 的 `.so` 暂存到 `lib/` 目录（见 `Cargo.toml` 的 `[package.metadata.bundle]`）。
 
-### 从源码构建（开发）
+### 从源码启动
 
 ```bash
 git clone https://github.com/cislunarspace/eyes.git
 cd eyes
-cargo run                             # 开发模式（默认 feature）
 ```
 
-开发构建（默认 feature，不含摄像头/检测器）只需 Rust：
+**最小启动**（只看 UI 和托盘，不接摄像头）——只需 Rust：
 
-| 依赖 | 说明 |
-|------|------|
-| Rust | 1.80+（stable）|
+```bash
+cargo run
+```
 
-完整功能（`--features opencv-camera,onnx-detector`）还需要：
+**完整功能启动**（摄像头 + 姿态检测 + 提醒）——需要 OpenCV、ONNX Runtime 和模型文件：
 
-| 依赖 | 环境变量 / 说明 |
-|------|---------|
-| OpenCV 4.x | `OPENCV_LINK_PATHS`（Windows）；系统 `libopencv-dev`（Linux）|
-| ONNX Runtime 1.x | `ORT_LIB_LOCATION`、`ORT_STRATEGY=system`（Windows）；打包进 .so（Linux）|
+```bash
+cargo run --features opencv-camera,onnx-detector
+```
 
-Windows MSI 打包（`scripts\build-windows.cmd`）还需要：
+完整功能的前置依赖：
+
+| 依赖 | Windows | Linux |
+|------|---------|-------|
+| Rust 1.80+（stable） | 必装 | 必装 |
+| OpenCV 4.x | `OPENCV_LINK_PATHS` 指向 `opencv_world4100.dll` 所在目录 | `sudo apt install libopencv-dev`（Debian/Ubuntu）或等价包 |
+| ONNX Runtime 1.x | `ORT_LIB_LOCATION` 指向 `onnxruntime.dll` 所在目录，`ORT_STRATEGY=system` | ONNX Runtime `.so` 放入 `lib/`（见 `Cargo.toml` 的 `[package.metadata.bundle]`） |
+| 检测模型 | `models/face_detection_yunet_2023mar.onnx`（从 [Releases](https://github.com/cislunarspace/eyes/releases) 获取） | 同左 |
+
+> Windows 上，把 `onnxruntime.dll` 和 `opencv_world4100.dll` 放在仓库根目录，应用启动时会通过 `SetDllDirectoryW` 自动把它们加入搜索路径。
+
+### 打包
+
+**Windows MSI**：
+
+```bash
+scripts\build-windows.cmd    # 拷贝模型与 DLL，再调 cargo wix 产出 MSI
+```
 
 | 依赖 | 说明 |
 |------|------|
 | cargo-wix | `cargo install cargo-wix` |
 | WiX Toolset v3 | `candle.exe` / `light.exe` 加入 PATH |
-| 检测模型 | `models/face_detection_yunet_2023mar.onnx` |
-| 运行时 DLL | `onnxruntime.dll`、`opencv_world4100.dll`（放仓库根目录） |
+
+**Linux .deb / .rpm**：
+
+```bash
+cargo install cargo-bundle    # 首次
+cargo bundle --format deb     # 产出 .deb
+cargo bundle --format rpm     # 产出 .rpm
+```
+
+打包前需将 ONNX Runtime 的 `.so` 暂存到 `lib/` 目录（见 `Cargo.toml` 的 `[package.metadata.bundle]`）。
 
 ---
 
