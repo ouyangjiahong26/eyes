@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.2] — 2026-07-05
+
+### 修复
+
+- **Linux 中文显示为方块（tofu）**：`src/lib.rs::load_system_cjk_font` 的 `CANDIDATES` 数组在 `target_os != "windows"` 时为空，Linux 用户启动后所有 CJK 字符走 Bevy 默认字体（不含 CJK 字形）→ 显示为方块。补 Linux 候选路径（`NotoSansCJK-{Regular,Bold}.ttc`、`NotoSerifCJK-Regular.ttc`、`wqy-zenhei.ttc`、`arphic/uming.ttc`）；并在 `.deb` `Depends` 加 `fonts-noto-cjk` 让 apt 自动安装。
+
 ## [0.4.1] — 2026-07-05
 
 ### 修复

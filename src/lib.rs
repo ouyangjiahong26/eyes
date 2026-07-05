@@ -190,7 +190,18 @@ fn load_system_cjk_font(fonts: &mut Assets<Font>) -> Handle<Font> {
         r"C:\Windows\Fonts\simsun.ttc",
         r"C:\Windows\Fonts\NotoSerifSC-VF.ttf",
     ];
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    const CANDIDATES: &[&str] = &[
+        // fonts-noto-cjk（Ubuntu 24.04+ 默认装；.deb Depends 强制安装）
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+        // fonts-wqy-zenhei（Debian/Ubuntu 兼容，openSUSE/Fedora 常见）
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        // AR PL UMing（Debian arphic-uming 包）
+        "/usr/share/fonts/truetype/arphic/uming.ttc",
+    ];
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     const CANDIDATES: &[&str] = &[];
 
     for path in CANDIDATES {

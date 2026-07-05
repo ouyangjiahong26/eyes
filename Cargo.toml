@@ -1,6 +1,6 @@
 [package]
 name = "eyes"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 default-run = "eyes"
 description = "桌面坐姿监测与护眼提醒工具"
@@ -138,12 +138,15 @@ resources = ["models", "lib"]
 #   t64 = time_t 64-bit 过渡后缀（Debian 12+ 引入）
 # ldd target/release/eyes 链接的子包：core / imgproc / imgcodecs / videoio。
 # 其余 opencv 子库（calib3d、dnn、flann 等）由这 4 个间接依赖拉入。
+# fonts-noto-cjk：Linux 字体加载依赖（src/lib.rs::load_system_cjk_font 的 CANDIDATES
+#   首选项），无此包则中文字符显示为 tofu（方块）。Ubuntu 24.04 桌面默认装，server 需手动。
 deb_depends = [
     "libc6 (>= 2.31)",
     "libopencv-core406t64",
     "libopencv-imgproc406t64",
     "libopencv-imgcodecs406t64",
     "libopencv-videoio406t64",
+    "fonts-noto-cjk",
 ]
 
 # ── Linux RPM 打包（cargo-rpm）────────────────────────────────────
