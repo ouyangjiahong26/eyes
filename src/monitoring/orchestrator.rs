@@ -205,7 +205,7 @@ impl WorkerOrchestrator {
         }
 
         if let Some(ref mut w) = monitor {
-            let output = w.tick(0.1);
+            let output = w.tick(dt);
 
             // 从 monitor 输出喂入校准样本并检测连续无脸
             if let Some(ref mut session) = self.calibration_session {
