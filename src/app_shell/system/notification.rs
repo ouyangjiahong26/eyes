@@ -61,9 +61,16 @@ pub fn update_system_notification_system(
         if let MonitoringEvent::WarningLevelChanged { level, direction } = event {
             if let Some((title, body)) = notification_text(level, direction.as_deref()) {
                 // notify-rust 的发送在大多数平台上是异步的，不阻塞 Bevy 主循环。
+                // 用 Critical urgency 让桌面环境（GNOME/KDE）必须显示通知且停留
+                // 更长时间——普通 Normal urgency 在 GNOME 上可能 3 秒就消失，
+                // 用户没注意到。Critical 触发"灵动岛"风格顶部居中通知。
                 if let Err(e) = notify_rust::Notification::new()
                     .summary(title)
                     .body(&body)
+                    .appname("Eyes")
+                    .urgency(notify_rust::Urgency::Critical)
+                    .hint(notify_rust::Hint::Category("health".to_owned()))
+                    .timeout(notify_rust::Timeout::Milliseconds(5000))
                     .show()
                 {
                     bevy::log::warn!("系统通知发送失败: {e}");

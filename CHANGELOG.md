@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.7] — 2026-07-05
+
+### 增强
+
+- **系统通知升级为"灵动岛"风格**：原 `update_system_notification_system` 用 notify-rust 默认 `Normal` urgency，GNOME 桌面 3 秒自动关闭，用户容易错过。改为 `Critical` urgency + `Category::Health` hint + 5 秒 timeout，确保偏头提醒以顶部居中、半透明胶囊样式显示且停留足够长。
+
 ## [0.4.6] — 2026-07-05
 
 ### 修复
