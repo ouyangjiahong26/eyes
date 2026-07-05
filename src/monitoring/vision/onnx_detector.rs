@@ -155,8 +155,20 @@ impl Detector for YuNetDetector {
         let camera_matrix = estimate_camera_matrix(width, height);
         let rotation = solve_pnp::solve_pnp(&points_2d, &solve_pnp::MODEL_3D, &camera_matrix)?;
         let (yaw, pitch) = solve_pnp::rotation_to_yaw_pitch(&rotation);
-        Some(HeadPose { yaw, pitch })
+        let yaw_corrected = apply_yaw_pitch_coupling_compensation(yaw, pitch);
+        Some(HeadPose {
+            yaw: yaw_corrected,
+            pitch,
+        })
     }
+}
+
+/// 5 关键点 + 估算下巴的 6 点 DLT 在 pitch ≠ 0 时估算下巴的几何传递
+/// 不完全独立于 roll，SVD 正交化引入 yaw 残差（≈ k * pitch²）。
+/// 抽成纯函数以便单元测试；调用方传入 solve_pnp 的原始 yaw/pitch 输出。
+pub(crate) fn apply_yaw_pitch_coupling_compensation(yaw: f64, pitch: f64) -> f64 {
+    use crate::domain::defaults::YAW_PITCH_COUPLING_K;
+    yaw - YAW_PITCH_COUPLING_K * pitch.powi(2)
 }
 
 /// 从 ort 输出值中提取扁平化的 f32 Vec。

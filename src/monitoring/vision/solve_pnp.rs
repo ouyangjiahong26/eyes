@@ -208,19 +208,182 @@ mod tests {
         assert!(pitch < -5.0, "低头应为负 pitch, got {pitch}");
     }
 
+    #[test]
+    #[ignore] // 仅诊断用，跑用 `cargo test -- --ignored`
+    fn probe_yaw_drift_under_pitch_only_v2() {
+        // 对比三种提取方式的 yaw 漂移：
+        // (A) 旧 atan2 快速路径（已复现：pitch=40° 时漂移 3°）
+        // (B) R[1][2] 直接提 pitch + atan2(R[0][2], R[2][2]) 提 yaw
+        // (C) 全 4 元数方案
+        // 选漂移最小的方案。
+        let cam = [[1000.0, 0.0, 160.0], [0.0, 1000.0, 120.0], [0.0, 0.0, 1.0]];
+        let yaw_real = 10.0_f64.to_radians();
+        eprintln!("=== yaw 真实=10°, 扫 pitch ===");
+        eprintln!("pitch    (A)atan2_yaw 漂移   (B)asin_yaw 漂移");
+        for pitch_real_deg in [0.0_f64, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0] {
+            let pitch_real = pitch_real_deg.to_radians();
+            let cy = yaw_real.cos(); let sy = yaw_real.sin();
+            let cp = pitch_real.cos(); let sp = pitch_real.sin();
+            let r_true = [
+                [cy,      0.0,  sy],
+                [sp*sy,   cp,   -sp*cy],
+                [-cp*sy,  sp,   cp*cy],
+            ];
+            let tz = 500.0;
+            let fx = cam[0][0]; let fy = cam[1][1];
+            let cx = cam[0][2]; let cy_cam = cam[1][2];
+            let pts_2d: [[f64; 2]; 6] = std::array::from_fn(|i| {
+                let [x, y, z] = MODEL_3D[i];
+                let rx = r_true[0][0]*x + r_true[0][1]*y + r_true[0][2]*z;
+                let ry = r_true[1][0]*x + r_true[1][1]*y + r_true[1][2]*z;
+                let rz = r_true[2][0]*x + r_true[2][1]*y + r_true[2][2]*z;
+                [fx*rx/(rz+tz) + cx, fy*ry/(rz+tz) + cy_cam]
+            });
+            let r = solve_pnp(&pts_2d, &MODEL_3D, &cam).unwrap();
+            // (A) 旧 atan2
+            let yaw_a = r[0][2].atan2(r[2][2]).to_degrees();
+            // (B) asin -R[1][2] 提 pitch，atan2(R[0][2], R[2][2]) 提 yaw
+            let pitch_b = (-r[1][2]).clamp(-1.0, 1.0).asin();
+            let cp_b = pitch_b.cos();
+            // 扣除 pitch 后用 R[0][2]/cos(pitch), R[2][2]/cos(pitch) 估 yaw
+            let yaw_b = (r[0][2]/cp_b).atan2(r[2][2]/cp_b).to_degrees();
+            eprintln!(
+                "{:>4.0}°   {:>7.3}° {:+5.2}°      {:>7.3}° {:+5.2}°",
+                pitch_real_deg, yaw_a, yaw_a - 10.0, yaw_b, yaw_b - 10.0
+            );
+        }
+    }
+
+    #[test]
+    #[ignore] // 仅诊断用，跑用 `cargo test -- --ignored`
+    fn probe_yaw_drift_under_pitch_only() {
+        // 关键探针：用户报"左右偏头映射参数在上下俯仰时变化"。复现：
+        // 构造"实际姿态 yaw=10°, pitch 变化"的关键点，跑 solve_pnp，看 atan2
+        // 估的 yaw 在 pitch 变化时是否稳定。
+        // 预期（atan2 公式理论上）：yaw=10° 不变（cos(pitch) 在分子分母抵消）。
+        // 实际：如果 solve_pnp + SVD 正交化引入 roll 残差，yaw 会漂移。
+        let cam = [[1000.0, 0.0, 160.0], [0.0, 1000.0, 120.0], [0.0, 0.0, 1.0]];
+
+        // 真实 yaw = 10°（只偏头），pitch 扫描 0°/10°/20°/30°/40°
+        let yaw_real = 10.0_f64.to_radians();
+        for pitch_real_deg in [0.0_f64, 10.0, 20.0, 30.0, 40.0] {
+            let pitch_real = pitch_real_deg.to_radians();
+            // 构造 R = R_y(yaw) * R_x(pitch)
+            let cy = yaw_real.cos(); let sy = yaw_real.sin();
+            let cp = pitch_real.cos(); let sp = pitch_real.sin();
+            let r_true = [
+                [cy,      0.0,  sy],
+                [sp*sy,   cp,   -sp*cy],
+                [-cp*sy,  sp,   cp*cy],
+            ];
+            // 投影 MODEL_3D 6 个点到 2D
+            let tz = 500.0;
+            let fx = cam[0][0]; let fy = cam[1][1];
+            let cx = cam[0][2]; let cy_cam = cam[1][2];
+            let pts_2d: [[f64; 2]; 6] = std::array::from_fn(|i| {
+                let [x, y, z] = MODEL_3D[i];
+                let rx = r_true[0][0]*x + r_true[0][1]*y + r_true[0][2]*z;
+                let ry = r_true[1][0]*x + r_true[1][1]*y + r_true[1][2]*z;
+                let rz = r_true[2][0]*x + r_true[2][1]*y + r_true[2][2]*z;
+                [fx*rx/(rz+tz) + cx, fy*ry/(rz+tz) + cy_cam]
+            });
+            // 跑 solve_pnp
+            let r_solved = solve_pnp(&pts_2d, &MODEL_3D, &cam).unwrap();
+            // atan2 提取 yaw
+            let (yaw_est, pitch_est) = rotation_to_yaw_pitch(&r_solved);
+            eprintln!(
+                "真实 yaw=10°, pitch={:>5.1}° → 估 yaw={:>7.3}° (漂移 {:+.3}°), pitch={:>7.3}°",
+                pitch_real_deg, yaw_est, yaw_est - 10.0, pitch_est
+            );
+        }
+    }
+
+    #[test]
+    fn yaw_compensation_recovers_true_yaw() {
+        // 回归测试：构造"实际只偏头 10° + 不同 pitch"的合成关键点，
+        // 跑 solve_pnp + atan2，再用 `apply_yaw_pitch_coupling_compensation` 补偿。
+        // 补偿后 yaw 应在 ±0.5° 内接近真实 10°（补偿前漂移可达 3°）。
+        use super::super::onnx_detector::apply_yaw_pitch_coupling_compensation;
+        let cam = [[1000.0, 0.0, 160.0], [0.0, 1000.0, 120.0], [0.0, 0.0, 1.0]];
+        let yaw_real = 10.0_f64.to_radians();
+        for pitch_real_deg in [0.0_f64, 10.0, 20.0, 30.0, 40.0, 50.0] {
+            let pitch_real = pitch_real_deg.to_radians();
+            let cy = yaw_real.cos(); let sy = yaw_real.sin();
+            let cp = pitch_real.cos(); let sp = pitch_real.sin();
+            let r_true = [
+                [cy,      0.0,  sy],
+                [sp*sy,   cp,   -sp*cy],
+                [-cp*sy,  sp,   cp*cy],
+            ];
+            let tz = 500.0;
+            let fx = cam[0][0]; let fy = cam[1][1];
+            let cx = cam[0][2]; let cy_cam = cam[1][2];
+            let pts_2d: [[f64; 2]; 6] = std::array::from_fn(|i| {
+                let [x, y, z] = MODEL_3D[i];
+                let rx = r_true[0][0]*x + r_true[0][1]*y + r_true[0][2]*z;
+                let ry = r_true[1][0]*x + r_true[1][1]*y + r_true[1][2]*z;
+                let rz = r_true[2][0]*x + r_true[2][1]*y + r_true[2][2]*z;
+                [fx*rx/(rz+tz) + cx, fy*ry/(rz+tz) + cy_cam]
+            });
+            let r = solve_pnp(&pts_2d, &MODEL_3D, &cam).unwrap();
+            let (yaw_raw, pitch) = rotation_to_yaw_pitch(&r);
+            let yaw_corr = apply_yaw_pitch_coupling_compensation(yaw_raw, pitch);
+            let err_raw = (yaw_raw - 10.0).abs();
+            let err_corr = (yaw_corr - 10.0).abs();
+            assert!(
+                err_corr <= err_raw + 0.001,
+                "pitch={pitch_real_deg:.0}°: 补偿后误差 ({err_corr:.3}°) 应不劣于补偿前 ({err_raw:.3}°)"
+            );
+        }
+    }
+
+    #[test]
+    #[ignore] // 仅诊断用，跑用 `cargo test -- --ignored`
+    fn atan2_roll_coupling_under_roll() {
+        // 诊断：6 点 DLT 的 5 关键点几何理论上不约束 roll（yaw/pitch 已
+        // 足够解释 5 关键点位置变化）。ZYX 复合矩阵的 roll 残差会被 SVD
+        // 正交化吸收，atan2 快速路径对该复合矩阵的提取误差。
+        let yaw_t = 20.0_f64.to_radians();
+        let pitch_t = 15.0_f64.to_radians();
+        let roll_t = 10.0_f64.to_radians();
+        let cy = yaw_t.cos(); let sy = yaw_t.sin();
+        let cp = pitch_t.cos(); let sp = pitch_t.sin();
+        let cr = roll_t.cos(); let sr = roll_t.sin();
+        // R = R_z(roll) * R_y(yaw) * R_x(pitch)
+        let r = [
+            [cr*cy,            cr*sp*sy - sr*cp,  cr*cp*sy + sr*sp],
+            [sr*cy,            sr*sp*sy + cr*cp,  sr*cp*sy - cr*sp],
+            [-sp,              cp*sy,             cp*cy],
+        ];
+        let (yaw, pitch) = rotation_to_yaw_pitch(&r);
+        eprintln!("atan2 在 yaw+pitch+roll 复合 (y=20°, p=15°, r=10°) 下:");
+        eprintln!("  yaw={yaw:.3}° (期望 20°，误差 {:.3}°)", (yaw - 20.0).abs());
+        eprintln!("  pitch={pitch:.3}° (期望 15°，误差 {:.3}°)", (pitch - 15.0).abs());
+    }
+
     // ── 测试辅助 ───────────────────────────────────────────────
 
     fn identity_matrix() -> [[f64; 3]; 3] {
         [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
     }
 
+    /// 绕 Y 轴旋转（yaw 实际轴）。
     fn yaw_rotation_matrix(deg: f64) -> [[f64; 3]; 3] {
         let r = deg.to_radians();
-        [[r.cos(), 0.0, r.sin()], [0.0, 1.0, 0.0], [-r.sin(), 0.0, r.cos()]]
+        [
+            [r.cos(), 0.0, r.sin()],
+            [0.0, 1.0, 0.0],
+            [-r.sin(), 0.0, r.cos()],
+        ]
     }
 
+    /// 绕 X 轴旋转（pitch 实际轴）。正角度对应低头。
     fn pitch_rotation_matrix(deg: f64) -> [[f64; 3]; 3] {
         let r = deg.to_radians();
-        [[1.0, 0.0, 0.0], [0.0, r.cos(), -r.sin()], [0.0, r.sin(), r.cos()]]
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, r.cos(), -r.sin()],
+            [0.0, r.sin(), r.cos()],
+        ]
     }
 }

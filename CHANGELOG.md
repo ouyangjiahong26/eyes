@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.4] — 2026-07-05
+
+### 修复
+
+- **左右偏头参数受上下俯仰影响导致误提醒**：6 点 DLT 用 5 关键点 + 估算下巴的几何对 roll 不完全独立，pitch ≠ 0 时 SVD 正交化引入 yaw 残差（≈ k × pitch²）。例如实际偏头 10° + 俯仰 40° 时估 yaw=12.96°，超出 1° 阈值触发误提醒。修复：在 `detect` 后对 yaw 施加 `yaw -= 0.002 × pitch²` 补偿（`domain::defaults::YAW_PITCH_COUPLING_K = 0.002`），补偿后误差 ≤ 补偿前。加回归测试 `yaw_compensation_recovers_true_yaw` 验证 pitch 0°/10°/20°/30°/40°/50° 扫描下补偿不劣于补偿前。
+
 ## [0.4.3] — 2026-07-05
 
 ### 修复
