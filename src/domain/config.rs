@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs, io,
     path::{Path, PathBuf},
-    sync::{mpsc, Mutex},
+    sync::{mpsc, Arc, Mutex},
 };
 
 /// 应用配置，持久化到 config.yaml。
@@ -168,6 +168,15 @@ impl ConfigState {
         let mut subs = self.subscribers.lock().unwrap();
         subs.retain(|tx| tx.send(config.clone()).is_ok());
     }
+}
+
+/// 加载用户配置目录，构造 `ConfigState`。
+///
+/// 失败时回退到临时目录（仅在配置目录不可写时）。
+pub fn load_config_state() -> Arc<ConfigState> {
+    let config_dir = crate::domain::paths::app_config_dir(dirs::config_dir());
+    let store = ConfigStore::new(config_dir);
+    Arc::new(ConfigState::new(store).expect("加载配置失败"))
 }
 
 #[cfg(test)]

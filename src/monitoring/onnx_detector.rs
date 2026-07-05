@@ -199,6 +199,59 @@ fn estimate_camera_matrix(width: u32, height: u32) -> [[f64; 3]; 3] {
     [[f, 0.0, width as f64 / 2.0], [0.0, f, height as f64 / 2.0], [0.0, 0.0, 1.0]]
 }
 
+// ── 模型装配 ───────────────────────────────────────────────────
+
+/// 加载 YuNet ONNX 检测器。
+///
+/// 找不到模型文件或加载失败时返回 `None` 并打印日志，检测功能退化为不可用。
+#[cfg(all(feature = "opencv-camera", feature = "onnx-detector"))]
+pub fn load_onnx_detector() -> Option<Box<dyn crate::monitoring::detector::Detector>> {
+    use crate::monitoring::detector::Detector;
+
+    let path = resolve_model_path()?;
+    match YuNetDetector::new(path.to_str().unwrap_or("")) {
+        Ok(detector) => Some(Box::new(detector) as Box<dyn Detector>),
+        Err(e) => {
+            eprintln!("[eyes] 加载 ONNX 检测器失败（路径={}）：{e}", path.display());
+            None
+        }
+    }
+}
+
+/// 定位 YuNet ONNX 模型文件。
+///
+/// 按以下顺序尝试：
+/// 1. `<exe_dir>/models/face_detection_yunet_2023mar.onnx`（MSI 安装态）
+/// 2. `<exe_dir>/../../models/face_detection_yunet_2023mar.onnx`（cargo run 开发态）
+/// 3. `<cwd>/models/face_detection_yunet_2023mar.onnx`（任意工作目录兜底）
+#[cfg(all(feature = "opencv-camera", feature = "onnx-detector"))]
+fn resolve_model_path() -> Option<std::path::PathBuf> {
+    use crate::app_shell::platform::install_dir;
+    const MODEL_NAME: &str = "face_detection_yunet_2023mar.onnx";
+
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+
+    if let Some(dir) = install_dir() {
+        candidates.push(dir.join("models").join(MODEL_NAME));
+        if let Ok(dev_path) = dir.join("..").join("..").join("models").join(MODEL_NAME).canonicalize() {
+            candidates.push(dev_path);
+        }
+    }
+
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.join("models").join(MODEL_NAME));
+    }
+
+    for path in candidates {
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    eprintln!("[eyes] 找不到 ONNX 模型文件 {MODEL_NAME}；检测功能将不可用");
+    None
+}
+
 // ── 测试 ──────────────────────────────────────────────────────
 
 #[cfg(test)]
