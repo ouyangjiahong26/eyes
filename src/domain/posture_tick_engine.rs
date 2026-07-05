@@ -246,7 +246,6 @@ pub struct PostureTickEngine {
     eyest_threshold: f64,
     facing_seconds: f64,
     presence_seconds: f64,
-    snoozed: bool,
     yaw_oa: OffAxisState,
     pitch_oa: OffAxisState,
 }
@@ -267,22 +266,9 @@ impl PostureTickEngine {
             eyest_threshold: timing.eyest_threshold_seconds,
             facing_seconds: 0.0,
             presence_seconds: 0.0,
-            snoozed: false,
             yaw_oa: OffAxisState::new_yaw(),
             pitch_oa: OffAxisState::new_pitch(),
         }
-    }
-
-    pub fn is_snoozed(&self) -> bool {
-        self.snoozed
-    }
-
-    pub fn snooze(&mut self) {
-        self.snoozed = true;
-    }
-
-    pub fn resume(&mut self) {
-        self.snoozed = false;
     }
 
     /// 更新时机相关阈值，保留所有累加状态。
@@ -316,10 +302,6 @@ impl PostureTickEngine {
         dt: f64,
     ) -> Vec<SenseEvent> {
         let mut events = Vec::new();
-
-        if self.snoozed {
-            return events;
-        }
 
         // 各轴独立处理 off-axis 警告升级与 Correction
         events.extend(self.yaw_oa.tick(
