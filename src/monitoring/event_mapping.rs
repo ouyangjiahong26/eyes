@@ -42,6 +42,20 @@ pub fn from_worker_output(output: &WorkerOutput) -> Vec<MonitoringEvent> {
     events
 }
 
+/// 将 `PoseState` 的偏离方向映射为展示用的方向字符串。
+///
+/// 仅对四个 off-axis 方向返回 "left"/"right"/"up"/"down"，
+/// 其余（FacingScreen / NoFace）返回 "unknown"。
+fn direction_label(state: PoseState) -> &'static str {
+    match state {
+        PoseState::OffAxisLeft => "left",
+        PoseState::OffAxisRight => "right",
+        PoseState::HeadUp => "up",
+        PoseState::HeadDown => "down",
+        _ => "unknown",
+    }
+}
+
 /// 将单个 SenseEvent 映射为一组监控事件。
 ///
 /// 这不是纯粹的"转换"——它决定一次纠正该发出哪些事件
@@ -49,13 +63,7 @@ pub fn from_worker_output(output: &WorkerOutput) -> Vec<MonitoringEvent> {
 pub fn from_sense_event(event: &SenseEvent) -> Vec<MonitoringEvent> {
     match event {
         SenseEvent::Correction { direction } => {
-            let dir = match *direction {
-                PoseState::OffAxisLeft => "left",
-                PoseState::OffAxisRight => "right",
-                PoseState::HeadUp => "up",
-                PoseState::HeadDown => "down",
-                _ => "unknown",
-            };
+            let dir = direction_label(*direction);
             vec![
                 MonitoringEvent::WarningLevelChanged {
                     level: "correction".into(),
@@ -99,16 +107,17 @@ pub fn from_sense_event(event: &SenseEvent) -> Vec<MonitoringEvent> {
         }
         SenseEvent::WarningLevelChanged { level, direction } => {
             let level_str = format!("{:?}", level);
+            let dir_str = direction.map(direction_label);
             vec![
                 MonitoringEvent::WarningLevelChanged {
                     level: level_str.clone(),
-                    direction: direction.clone(),
+                    direction: dir_str.map(str::to_string),
                 },
                 MonitoringEvent::LogEvent {
                     kind: AppEventKind::WarningLevelChanged,
                     data: serde_json::json!({
                         "level": level_str,
-                        "direction": direction,
+                        "direction": dir_str,
                     }),
                 },
             ]

@@ -161,7 +161,7 @@ fn warning_level_lifecycle_matches_python_oracle() {
         SenseEvent::WarningLevelChanged {
             level: WarningLevel::Severe,
             direction: Some(direction)
-        } if direction == "right"
+        } if *direction == PoseState::OffAxisRight
     )));
 
     assert!(has_warning(
@@ -215,7 +215,7 @@ fn head_up_does_not_advance_yaw_warning_escalation() {
         let events = engine.tick(PoseState::FacingScreen, PoseState::HeadUp, 1.0);
         for ev in &events {
             assert!(
-                !matches!(ev, SenseEvent::WarningLevelChanged { direction: Some(d), .. } if d == "left" || d == "right"),
+                !matches!(ev, SenseEvent::WarningLevelChanged { direction: Some(d), .. } if *d == PoseState::OffAxisLeft || *d == PoseState::OffAxisRight),
                 "yaw warning should not change during pitch-only off-axis"
             );
         }

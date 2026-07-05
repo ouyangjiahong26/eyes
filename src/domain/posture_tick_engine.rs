@@ -18,18 +18,8 @@ pub enum SenseEvent {
     EyeRest,
     WarningLevelChanged {
         level: WarningLevel,
-        direction: Option<String>,
+        direction: Option<PoseState>,
     },
-}
-
-fn direction_label(state: PoseState) -> &'static str {
-    match state {
-        PoseState::OffAxisLeft => "left",
-        PoseState::OffAxisRight => "right",
-        PoseState::HeadUp => "up",
-        PoseState::HeadDown => "down",
-        _ => "",
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,8 +146,6 @@ impl OffAxisState {
             return events;
         }
 
-        let direction = direction_label(state);
-
         if self.is_off_for_self(state) {
             self.continuous_seconds += dt;
 
@@ -168,7 +156,7 @@ impl OffAxisState {
                         self.warning_level = WarningLevel::Warning;
                         events.push(SenseEvent::WarningLevelChanged {
                             level: WarningLevel::Warning,
-                            direction: Some(direction.to_string()),
+                            direction: Some(state),
                         });
                         events.push(SenseEvent::Correction { direction: state });
                         self.next_correction_threshold =
@@ -181,7 +169,7 @@ impl OffAxisState {
                         self.warning_level = WarningLevel::Severe;
                         events.push(SenseEvent::WarningLevelChanged {
                             level: WarningLevel::Severe,
-                            direction: Some(direction.to_string()),
+                            direction: Some(state),
                         });
                     }
                     // Correction：可能与 Severe 升级同帧触发（第二次 Correction）
