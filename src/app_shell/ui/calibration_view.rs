@@ -25,7 +25,7 @@ use bevy::prelude::*;
 
 use crate::app_shell::settings_view::CalibrateButton;
 use crate::app_shell::AppView;
-use crate::i18n::{I18nTable, LocalizedText};
+use super::i18n::{I18nTable, LocalizedText};
 use crate::AppFont;
 use crate::monitoring::channel::WorkerCommand;
 use crate::monitoring::events::MonitoringEvent;

@@ -12,7 +12,7 @@
 use bevy::prelude::*;
 
 use crate::domain::config::AppConfig;
-use crate::i18n::LocalizedText;
+use super::i18n::LocalizedText;
 use crate::monitoring::camera_enumerator::CameraDevice;
 use crate::monitoring::channel::WorkerCommand;
 use crate::AppFont;
@@ -775,7 +775,7 @@ pub(crate) fn handle_save(
     worker: Option<Res<crate::WorkerHandle>>,
     mut app_view: ResMut<crate::app_shell::AppView>,
     mut panel_state: ResMut<SettingsPanelState>,
-    mut i18n: ResMut<crate::i18n::I18nTable>,
+    mut i18n: ResMut<super::i18n::I18nTable>,
     mut commands: Commands,
 ) {
     let mut reader = events.read();
@@ -801,7 +801,7 @@ pub(crate) fn handle_save(
 
     // 语言切换 → 刷新 i18n 资源
     if i18n.language != new_config.language {
-        *i18n = crate::i18n::I18nTable::for_language(&new_config.language);
+        *i18n = super::i18n::I18nTable::for_language(&new_config.language);
     }
 
     // 开机自启：写注册表（仅 Windows）

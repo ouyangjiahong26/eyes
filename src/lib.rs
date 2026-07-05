@@ -10,7 +10,6 @@ pub mod app_shell;
 pub mod app_state;
 pub mod audio;
 pub mod domain;
-pub mod i18n;
 pub mod monitoring;
 pub mod worker_setup;
 
@@ -41,7 +40,7 @@ use app_shell::notification::{
 };
 use app_shell::tray::{spawn_tray, TrayMenuCommand};
 use domain::config::ConfigState;
-use i18n::{refresh_localized_text, I18nTable};
+use app_shell::ui::i18n::{refresh_localized_text, I18nTable};
 use monitoring::channel::{WorkerCommand, WorkerSender};
 use monitoring::events::MonitoringEvent;
 use worker_setup::spawn_worker;
