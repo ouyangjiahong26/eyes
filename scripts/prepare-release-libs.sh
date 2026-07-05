@@ -5,26 +5,24 @@
 # 用途：
 #   cargo bundle --format deb/rpm 打包时会读取 [package.metadata.bundle].resources
 #   声明的目录（包含 lib/），把里面的文件一并塞进 deb/rpm。
-#   Linux 上 ONNX Runtime 是动态库，必须随包分发；它的 .so 由 ort crate 在
-#   构建时下载并展开到 target/release/build/ort-sys-*/out/（或 ort-*/out/），
-#   需要本脚本集中拷贝到 lib/，供 cargo bundle 拾取。
+#   当 ONNX Runtime 是动态库时（早期 ort crate），.so 由 ort 在构建时下载并
+#   展开到 target/release/build/ort-sys-*/out/，需要本脚本集中拷贝到 lib/，
+#   供 cargo bundle 拾取。
 #
 # 调用：
 #   scripts/prepare-release-libs.sh
 #
 # 前置条件：
-#   至少成功跑过一次 `cargo build --release --features onnx-detector`，
-#   ort crate 才会下载并展开 ONNX Runtime 二进制。
+#   至少成功跑过一次 `cargo build --release --features onnx-detector`。
 #
 # 行为：
 #   - 在三处候选位置搜索 libonnxruntime.so*（含带版本号的 .so.21 等）：
 #       1) target/release/build/ort-sys-*/out/
 #       2) target/release/build/ort-*/out/
 #       3) target/release/ 顶层
-#   - 复制到 lib/，保留符号链接（避免实体 .so 被复制 N 份）
-#   - lib/ 不存在则自动创建
-#   - 多次运行幂等：cp -P -f 覆盖
-#   - 找不到任何 .so 时输出明确错误并退出非零
+#   - 找到则复制到 lib/，保留符号链接；多次运行幂等
+#   - 找不到任何 .so 时打 info 日志并退出 0（ort 2.x 默认静态链接到二进制，
+#     没有动态库需要分发，lib/ 在 bundle 时为空白目录属正常情况）
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -47,16 +45,12 @@ for pattern in \
 done
 
 if [[ ${#SOURCES[@]} -eq 0 ]]; then
-    cat >&2 <<EOF
-[错误] 未找到 libonnxruntime.so*。
-
-请先在启用 onnx-detector feature 的前提下跑一次 release 构建：
-    cargo build --release --features onnx-detector,opencv-camera
-
-ort crate 在构建时会下载 ONNX Runtime 并展开到
-target/release/build/ort{,-sys}-*/out/ 目录下，本脚本依赖该产物。
+    cat <<EOF
+[info] 未找到 libonnxruntime.so*，跳过。
+       ort 2.x 默认静态链接 ONNX Runtime 到二进制，无 .so 需随包分发。
+       lib/ 将作为空目录随 deb/rpm 一起打包（cargo bundle resources 行为）。
 EOF
-    exit 1
+    exit 0
 fi
 
 for src in "${SOURCES[@]}"; do

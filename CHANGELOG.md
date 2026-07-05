@@ -26,7 +26,7 @@
 ### 平台与打包
 
 - **Windows MSI**（`cargo wix`）：可执行文件 + ONNX 模型 + `onnxruntime.dll` + `opencv_world4100.dll`，开始菜单快捷方式，注册卸载项，`SetDllDirectoryW` 管理 DLL 搜索路径
-- **Linux deb / rpm**（`cargo bundle`）：依赖系统 OpenCV，内置 ONNX Runtime `.so` 与模型
+- **Linux deb / rpm**（`cargo bundle`）：依赖系统 OpenCV，ONNX Runtime 静态链接到二进制，models/ 随包分发
 - **Linux autostart**：写 `~/.config/autostart/eyes.desktop`（XDG 规范）
 - `build.rs`：Linux 构建期 `pkg-config opencv4` 校验，失败打印明确指引
 
