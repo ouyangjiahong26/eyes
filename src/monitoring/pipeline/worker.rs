@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::detector::Detector;
-use super::preview::{encode_preview, Frame, PreviewFrame};
+use crate::monitoring::preview::{encode_preview, Frame, PreviewFrame};
 use crate::domain::classifier::{self, NeutralPose, PoseClassification, PoseState, Thresholds};
 use crate::domain::config::ConfigState;
 use crate::domain::posture_tick_engine::{PostureTickEngine, SenseEvent, WarningLevel};

@@ -1,7 +1,8 @@
 #[cfg(feature = "opencv-camera")]
 use opencv::{core, imgproc, prelude::*, videoio};
 
-use super::{preview::Frame, worker::FrameSource};
+use crate::monitoring::preview::Frame;
+use crate::monitoring::worker::FrameSource;
 
 #[cfg(feature = "opencv-camera")]
 pub struct OpenCvCamera {
