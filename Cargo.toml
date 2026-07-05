@@ -1,6 +1,6 @@
 [package]
 name = "eyes"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 default-run = "eyes"
 description = "桌面坐姿监测与护眼提醒工具"
@@ -132,8 +132,19 @@ long_description = "通过摄像头监测头部姿态，提醒你保持正确坐
 # OpenCV 不打包：Linux 包声明依赖系统 libopencv（见 build.rs 的 pkg-config 校验）。
 resources = ["models", "lib"]
 # Linux 包运行时依赖（cargo-bundle 在生成 .deb 时写入 control 字段 Depends）。
-# libc6 兜底：deb 构建机可能默认装旧版 glibc；libopencv-core4.6 与系统 OpenCV 头文件版本对齐。
-deb_depends = ["libc6 (>= 2.31)", "libopencv-core4.6 (>= 4.6.0)"]
+# libc6 兜底：deb 构建机可能默认装旧版 glibc。
+# opencv 子包命名遵循 Debian 12+/Ubuntu 24.04 约定：<module>406t64
+#   406 = OpenCV 4.6 主版本号，dot-to-0 转换
+#   t64 = time_t 64-bit 过渡后缀（Debian 12+ 引入）
+# ldd target/release/eyes 链接的子包：core / imgproc / imgcodecs / videoio。
+# 其余 opencv 子库（calib3d、dnn、flann 等）由这 4 个间接依赖拉入。
+deb_depends = [
+    "libc6 (>= 2.31)",
+    "libopencv-core406t64",
+    "libopencv-imgproc406t64",
+    "libopencv-imgcodecs406t64",
+    "libopencv-videoio406t64",
+]
 
 # ── Linux RPM 打包（cargo-rpm）────────────────────────────────────
 # `cargo rpm build` 读取以下配置产出 .rpm 包。

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.1] — 2026-07-05
+
+### 修复
+
+- **`.deb` 依赖解析失败**：v0.4.0 .deb 的 `Depends` 声明 `libopencv-core4.6 (>= 4.6.0)`，但 Debian 12+/Ubuntu 24.04 上 OpenCV 4.6 实际包名是 `libopencv-core406t64`（406 = 4.6 主版本号 dot-to-0 转换，t64 = time_t 64-bit 过渡后缀）。修正为按 ldd 实际链接的 4 个子包：`libopencv-core406t64`、`libopencv-imgproc406t64`、`libopencv-imgcodecs406t64`、`libopencv-videoio406t64`。
+
 ## [0.4.0] — 2026-07-03
 
 ### 破坏性变更
