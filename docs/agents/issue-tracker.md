@@ -1,22 +1,26 @@
-# Issue tracker: GitHub
+# Issue tracker：GitHub
 
-Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+本仓库的 issue 和 PRD 都存放在 GitHub Issues。所有操作通过 `gh` CLI 完成。
 
-## Conventions
+## 约定
 
-- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
-- **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
-- **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
-- **Comment on an issue**: `gh issue comment <number> --body "..."`
-- **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
-- **Close**: `gh issue close <number> --comment "..."`
+- **创建 issue**：`gh issue create --title "..." --body "..."`。多行正文用 heredoc。
+- **读取 issue**：`gh issue view <number> --comments`，用 `jq` 过滤评论并一并取标签。
+- **列出 issue**：`gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`，按需要加 `--label`、`--state` 过滤。
+- **评论**：`gh issue comment <number> --body "..."`
+- **加 / 去标签**：`gh issue edit <number> --add-label "..."` / `--remove-label "..."`
+- **关闭**：`gh issue close <number> --comment "..."`
 
-Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
+仓库归属从 `git remote -v` 推断——`gh` 在 clone 内运行时会自动识别。
 
-## When a skill says "publish to the issue tracker"
+## 外部 PR
 
-Create a GitHub issue.
+外部 PR **不**作为请求渠道纳入分诊队列。
 
-## When a skill says "fetch the relevant ticket"
+## 当技能说"发布到 issue tracker"
 
-Run `gh issue view <number> --comments`.
+创建一条 GitHub issue。
+
+## 当技能说"取回相关 ticket"
+
+运行 `gh issue view <number> --comments`。

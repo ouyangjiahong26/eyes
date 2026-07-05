@@ -19,15 +19,15 @@
 
 ### Issue tracker
 
-Issues live as GitHub Issues. Uses the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issue 存放在 GitHub Issues，用 `gh` CLI 操作；外部 PR 不纳入分诊。见 `docs/agents/issue-tracker.md`。
 
 ### Triage labels
 
-Default triage labels: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix. See `docs/agents/triage-labels.md`.
+五个标准分诊标签：needs-triage、needs-info、ready-for-agent、ready-for-human、wontfix，均与标签字符串同名。见 `docs/agents/triage-labels.md`。
 
 ### Domain docs
 
-Single-context: one `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+单一上下文布局：仓库根目录一份 `CONTEXT.md` + `docs/adr/`。见 `docs/agents/domain.md`。
 
 ## 编码准则
 
