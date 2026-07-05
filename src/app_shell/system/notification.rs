@@ -6,7 +6,7 @@
 //! 通知内容映射（基于 worker 产出的 level 字符串）：
 //! - `"correction"` → 偏头提醒："请调整头部方向" + 方向提示
 //! - `"eye_rest"`   → 眼休提醒："请眺望远方休息一下"
-//! - 其余（`"good_posture"` / `"Normal"` / `"Corrected"` 等）→ 不通知
+//! - 其余（`"good_posture"` / `"normal"` / `"corrected"` 等）→ 不通知
 
 use bevy::prelude::*;
 
@@ -86,7 +86,7 @@ fn notification_text(level: &str, direction: Option<&str>) -> Option<(&'static s
             Some(("Eyes", body))
         }
         "eye_rest" => Some(("Eyes", "请眺望远方休息一下".to_string())),
-        // good_posture / Normal / Corrected 等正面或恢复状态不通知
+        // good_posture / normal / corrected 等正面或恢复状态不通知
         _ => None,
     }
 }
@@ -133,12 +133,12 @@ mod tests {
 
     #[test]
     fn normal_level_does_not_notify() {
-        assert!(notification_text("Normal", None).is_none());
+        assert!(notification_text("normal", None).is_none());
     }
 
     #[test]
     fn corrected_level_does_not_notify() {
-        assert!(notification_text("Corrected", None).is_none());
+        assert!(notification_text("corrected", None).is_none());
     }
 
     #[test]

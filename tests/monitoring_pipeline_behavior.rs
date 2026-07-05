@@ -333,9 +333,9 @@ fn bevy_event_sink_receives_monitoring_events() {
     assert!(
         events.iter().any(|e| matches!(
             e,
-            MonitoringEvent::PoseUpdated { pose_state, .. } if pose_state == "FacingScreen"
+            MonitoringEvent::PoseUpdated { pose_state, .. } if pose_state == "facing_screen"
         )),
-        "应有 PoseUpdated(FacingScreen), events={events:?}"
+        "应有 PoseUpdated(facing_screen), events={events:?}"
     );
 }
 
@@ -414,6 +414,6 @@ fn bevy_event_sink_does_not_panic_on_dropped_receiver() {
     sink.emit(MonitoringEvent::PoseUpdated {
         yaw: Some(0.0),
         pitch: Some(0.0),
-        pose_state: "FacingScreen".into(),
+        pose_state: "facing_screen".into(),
     });
 }

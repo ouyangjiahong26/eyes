@@ -23,7 +23,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 use crate::app_shell::settings_view::{SettingsDraft, SettingsPanelState};
 use crate::app_shell::AppView;
-use crate::i18n::{I18nTable, LocalizedText};
+use super::i18n::{I18nTable, LocalizedText};
 use crate::AppFont;
 use crate::monitoring::camera_enumerator;
 use crate::monitoring::events::MonitoringEvent;
@@ -383,15 +383,15 @@ pub(crate) fn update_view_visibility(
 
 // ── 辅助 ───────────────────────────────────────────────────────
 
-/// 把 PoseState 的 Debug 字符串映射到 i18n key。
+/// 把 PoseState 的 snake_case 字符串映射到 i18n key。
 fn pose_state_key(raw: &str) -> String {
     let key = match raw {
-        "FacingScreen" => "pose.facing_screen",
-        "OffAxisLeft" => "pose.off_axis_left",
-        "OffAxisRight" => "pose.off_axis_right",
-        "HeadUp" => "pose.head_up",
-        "HeadDown" => "pose.head_down",
-        "NoFace" => "pose.no_face",
+        "facing_screen" => "pose.facing_screen",
+        "off_axis_left" => "pose.off_axis_left",
+        "off_axis_right" => "pose.off_axis_right",
+        "head_up" => "pose.head_up",
+        "head_down" => "pose.head_down",
+        "no_face" => "pose.no_face",
         _ => "pose.no_face",
     };
     key.to_string()

@@ -5,7 +5,7 @@
 
 use crate::domain::classifier::PoseState;
 use crate::domain::event_log::AppEventKind;
-use crate::domain::posture_tick_engine::SenseEvent;
+use crate::domain::posture_tick_engine::{SenseEvent, WarningLevel};
 use crate::monitoring::events::MonitoringEvent;
 use crate::monitoring::worker::WorkerOutput;
 
@@ -28,7 +28,7 @@ pub fn from_worker_output(output: &WorkerOutput) -> Vec<MonitoringEvent> {
         return events;
     }
 
-    let pose_str = format!("{:?}", output.pose_state);
+    let pose_str = pose_state_key(output.pose_state).to_string();
     events.push(MonitoringEvent::PoseUpdated {
         yaw: output.yaw,
         pitch: output.pitch,
@@ -40,6 +40,30 @@ pub fn from_worker_output(output: &WorkerOutput) -> Vec<MonitoringEvent> {
     }
 
     events
+}
+
+/// 将 `PoseState` 映射为对外稳定的 snake_case 字符串。
+///
+/// 不依赖 Debug 派生表示，避免 enum 变体重命名后外部契约被破坏。
+fn pose_state_key(s: PoseState) -> &'static str {
+    match s {
+        PoseState::FacingScreen => "facing_screen",
+        PoseState::OffAxisLeft => "off_axis_left",
+        PoseState::OffAxisRight => "off_axis_right",
+        PoseState::HeadUp => "head_up",
+        PoseState::HeadDown => "head_down",
+        PoseState::NoFace => "no_face",
+    }
+}
+
+/// 将 `WarningLevel` 映射为对外稳定的 snake_case 字符串。
+fn warning_level_key(l: WarningLevel) -> &'static str {
+    match l {
+        WarningLevel::Normal => "normal",
+        WarningLevel::Warning => "warning",
+        WarningLevel::Severe => "severe",
+        WarningLevel::Corrected => "corrected",
+    }
 }
 
 /// 将 `PoseState` 的偏离方向映射为展示用的方向字符串。
@@ -106,7 +130,7 @@ pub fn from_sense_event(event: &SenseEvent) -> Vec<MonitoringEvent> {
             ]
         }
         SenseEvent::WarningLevelChanged { level, direction } => {
-            let level_str = format!("{:?}", level);
+            let level_str = warning_level_key(*level).to_string();
             let dir_str = direction.map(direction_label);
             vec![
                 MonitoringEvent::WarningLevelChanged {
@@ -167,7 +191,7 @@ mod tests {
                 pose_state: ref ps,
                 ..
             }
-            if ps == "FacingScreen"
+            if ps == "facing_screen"
         ));
     }
 
@@ -252,7 +276,7 @@ mod tests {
         assert!(events.iter().any(|e| matches!(
             e,
             MonitoringEvent::WarningLevelChanged { ref level, .. }
-            if level == "Normal"
+            if level == "normal"
         )));
     }
 
