@@ -3,6 +3,7 @@
 use crate::domain::calibration::CalibrationSession;
 use crate::domain::config::ConfigState;
 use crate::domain::snooze;
+use crate::domain::thresholds::TimingThresholds;
 use crate::monitoring::channel::{WorkerCommand, WorkerReceiver};
 use crate::monitoring::detector::Detector;
 use crate::monitoring::event_mapping;
@@ -15,34 +16,14 @@ use std::time::{Duration, Instant};
 pub trait Monitor: Send + 'static {
     fn tick(&mut self, dt: f64) -> WorkerOutput;
     fn set_snoozed(&mut self, snoozed: bool);
-    fn update_timing(
-        &mut self,
-        off_axis_streak_threshold: f64,
-        off_axis_repeat_interval: f64,
-        off_axis_severe_threshold: f64,
-        facing_threshold: f64,
-        eyest_threshold: f64,
-    );
+    fn update_timing(&mut self, timing: TimingThresholds);
 }
 
 impl<C: FrameSource + Send + 'static> Monitor for MonitoringWorker<C> {
     fn tick(&mut self, dt: f64) -> WorkerOutput { self.tick(dt) }
     fn set_snoozed(&mut self, snoozed: bool) { self.set_snoozed(snoozed); }
-    fn update_timing(
-        &mut self,
-        off_axis_streak_threshold: f64,
-        off_axis_repeat_interval: f64,
-        off_axis_severe_threshold: f64,
-        facing_threshold: f64,
-        eyest_threshold: f64,
-    ) {
-        self.engine_mut().update_timing(
-            off_axis_streak_threshold,
-            off_axis_repeat_interval,
-            off_axis_severe_threshold,
-            facing_threshold,
-            eyest_threshold,
-        );
+    fn update_timing(&mut self, timing: TimingThresholds) {
+        self.engine_mut().update_timing(timing);
     }
 }
 
@@ -123,13 +104,7 @@ impl WorkerOrchestrator {
                     WorkerCommand::SetConfig(new_config) => {
                         let camera_changed = new_config.camera_index != camera_index;
                         if let Some(ref mut m) = monitor {
-                            m.update_timing(
-                                new_config.off_axis_streak_threshold_seconds,
-                                new_config.off_axis_repeat_interval_seconds,
-                                new_config.off_axis_severe_threshold_seconds,
-                                new_config.facing_threshold_seconds,
-                                new_config.eyest_threshold_seconds,
-                            );
+                            m.update_timing(new_config.timing);
                         }
                         if camera_changed {
                             camera_index = new_config.camera_index;
@@ -402,14 +377,7 @@ mod tests {
             self.snoozed.store(snoozed, Ordering::SeqCst);
         }
 
-        fn update_timing(
-            &mut self,
-            _off_axis_streak_threshold: f64,
-            _off_axis_repeat_interval: f64,
-            _off_axis_severe_threshold: f64,
-            _facing_threshold: f64,
-            _eyest_threshold: f64,
-        ) {}
+        fn update_timing(&mut self, _timing: TimingThresholds) {}
     }
 
     // ── Mock EventSink ───────────────────────────────────────────

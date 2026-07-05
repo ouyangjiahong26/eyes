@@ -1,6 +1,7 @@
 use eyes_lib::domain::{
     classifier::PoseState,
     posture_tick_engine::{PostureTickEngine, SenseEvent, WarningLevel},
+    thresholds::TimingThresholds,
 };
 
 fn has_correction(events: &[SenseEvent]) -> bool {
@@ -59,7 +60,10 @@ fn off_axis_streak_fires_correction_at_threshold_and_repeats() {
 
 #[test]
 fn zero_streak_threshold_fires_immediately() {
-    let mut engine = PostureTickEngine::new(Some(0.0), None, None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 0.0,
+        ..Default::default()
+    });
     assert!(has_correction(&tick_yaw(&mut engine, PoseState::OffAxisLeft, 0.1)));
 }
 
@@ -69,7 +73,10 @@ fn non_off_axis_left_right_states_reset_or_skip_correction_streak() {
     // `continuous_seconds`（off-axis 累积已在 NoFace 期间停止）。
     // 因此累积值跨 NoFace 保留，回到 OffAxisLeft 继续累积，
     // 累计到达 streak_threshold 时仍能触发 Correction。
-    let mut engine = PostureTickEngine::new(Some(5.0), None, None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 5.0,
+        ..Default::default()
+    });
 
     // 累积 cont=1..3 (< streak_threshold=5)，无 Correction
     for _ in 0..3 {
@@ -86,7 +93,12 @@ fn non_off_axis_left_right_states_reset_or_skip_correction_streak() {
 
 #[test]
 fn facing_and_presence_accumulators_fire_and_reset_at_thresholds() {
-    let mut engine = PostureTickEngine::new(Some(5.0), None, None, Some(2.0), Some(3.0));
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 5.0,
+        facing_threshold_seconds: 2.0,
+        eyest_threshold_seconds: 3.0,
+        ..Default::default()
+    });
 
     assert!(!has_good_posture(
         &tick_yaw(&mut engine, PoseState::FacingScreen, 1.0)
@@ -101,7 +113,12 @@ fn facing_and_presence_accumulators_fire_and_reset_at_thresholds() {
 
 #[test]
 fn non_facing_and_no_face_pause_accumulators_without_resetting() {
-    let mut engine = PostureTickEngine::new(Some(5.0), None, None, Some(10.0), Some(10.0));
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 5.0,
+        facing_threshold_seconds: 10.0,
+        eyest_threshold_seconds: 10.0,
+        ..Default::default()
+    });
 
     for _ in 0..5 {
         tick_yaw(&mut engine, PoseState::FacingScreen, 1.0);
@@ -124,7 +141,10 @@ fn non_facing_and_no_face_pause_accumulators_without_resetting() {
 // 仅语义已变化——首 Correction 现与 Warning 升级同帧。
 #[test]
 fn warning_level_lifecycle_matches_python_oracle() {
-    let mut engine = PostureTickEngine::new(None, Some(10.0), None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_repeat_interval_seconds: 10.0,
+        ..Default::default()
+    });
 
     let events = tick_yaw(&mut engine, PoseState::OffAxisLeft, 1.0);
     assert!(has_warning(&events, WarningLevel::Warning));
@@ -160,7 +180,10 @@ fn warning_level_lifecycle_matches_python_oracle() {
 
 #[test]
 fn warning_does_not_escalate_below_threshold_and_no_face_starts_fresh_episode() {
-    let mut engine = PostureTickEngine::new(None, Some(10.0), None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_repeat_interval_seconds: 10.0,
+        ..Default::default()
+    });
 
     tick_yaw(&mut engine, PoseState::OffAxisLeft, 1.0);
     for _ in 0..8 {
@@ -179,7 +202,10 @@ fn warning_does_not_escalate_below_threshold_and_no_face_starts_fresh_episode() 
 #[test]
 fn head_up_does_not_advance_yaw_warning_escalation() {
     // HeadUp 属于 pitch 轴，不应影响 yaw 轴的警告升级。
-    let mut engine = PostureTickEngine::new(None, Some(10.0), None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_repeat_interval_seconds: 10.0,
+        ..Default::default()
+    });
 
     // 先在 yaw 轴触发 Warning
     tick_yaw(&mut engine, PoseState::OffAxisLeft, 1.0);
@@ -209,7 +235,13 @@ fn head_up_does_not_advance_yaw_warning_escalation() {
 
 #[test]
 fn snooze_freezes_all_accumulators_until_resume() {
-    let mut engine = PostureTickEngine::new(Some(5.0), Some(10.0), None, Some(10.0), Some(10.0));
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 5.0,
+        off_axis_repeat_interval_seconds: 10.0,
+        facing_threshold_seconds: 10.0,
+        eyest_threshold_seconds: 10.0,
+        ..Default::default()
+    });
     for _ in 0..5 {
         tick_yaw(&mut engine, PoseState::FacingScreen, 1.0);
     }
@@ -233,7 +265,13 @@ fn snooze_freezes_all_accumulators_until_resume() {
 
 #[test]
 fn snooze_freezes_facing_presence_and_warning_escalation_independently() {
-    let mut engine = PostureTickEngine::new(Some(5.0), Some(10.0), None, Some(10.0), Some(10.0));
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 5.0,
+        off_axis_repeat_interval_seconds: 10.0,
+        facing_threshold_seconds: 10.0,
+        eyest_threshold_seconds: 10.0,
+        ..Default::default()
+    });
     for _ in 0..5 {
         tick_yaw(&mut engine, PoseState::FacingScreen, 1.0);
     }
@@ -256,7 +294,10 @@ fn snooze_freezes_facing_presence_and_warning_escalation_independently() {
     let events = tick_yaw(&mut engine, PoseState::FacingScreen, 1.0);
     assert!(has_good_posture(&events));
 
-    let mut engine = PostureTickEngine::new(None, Some(10.0), None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_repeat_interval_seconds: 10.0,
+        ..Default::default()
+    });
     tick_yaw(&mut engine, PoseState::OffAxisLeft, 1.0);
     engine.snooze();
     for _ in 0..20 {
@@ -307,7 +348,10 @@ fn pitch_correction_repeats_at_interval() {
 
 #[test]
 fn pitch_warning_level_escalates_independently() {
-    let mut engine = PostureTickEngine::new(None, Some(10.0), None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_repeat_interval_seconds: 10.0,
+        ..Default::default()
+    });
 
     let events = engine.tick(PoseState::FacingScreen, PoseState::HeadUp, 1.0);
     assert!(has_warning(&events, WarningLevel::Warning));
@@ -338,7 +382,10 @@ fn both_axes_off_generate_independent_corrections() {
 
 #[test]
 fn good_posture_requires_both_axes_facing() {
-    let mut engine = PostureTickEngine::new(None, None, None, Some(2.0), None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        facing_threshold_seconds: 2.0,
+        ..Default::default()
+    });
 
     for _ in 0..5 {
         let events = engine.tick(PoseState::FacingScreen, PoseState::HeadUp, 1.0);
@@ -353,7 +400,10 @@ fn good_posture_requires_both_axes_facing() {
 
 #[test]
 fn good_posture_pauses_during_pitch_off_axis() {
-    let mut engine = PostureTickEngine::new(None, None, None, Some(5.0), None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        facing_threshold_seconds: 5.0,
+        ..Default::default()
+    });
 
     for _ in 0..3 {
         engine.tick(PoseState::FacingScreen, PoseState::FacingScreen, 1.0);
@@ -367,7 +417,10 @@ fn good_posture_pauses_during_pitch_off_axis() {
 
 #[test]
 fn eye_rest_requires_both_axes_have_face() {
-    let mut engine = PostureTickEngine::new(None, None, None, None, Some(2.0));
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        eyest_threshold_seconds: 2.0,
+        ..Default::default()
+    });
 
     engine.tick(PoseState::FacingScreen, PoseState::FacingScreen, 1.0);
     engine.tick(PoseState::NoFace, PoseState::FacingScreen, 1.0);
@@ -381,14 +434,15 @@ fn eye_rest_requires_both_axes_have_face() {
 // Warning → Severe 由独立的 severe_threshold 控制，
 // Correction 在同一时间轴上与 warning 升级（首次）/ severe 升级（第二次）同帧。
 
-/// `warning_escalates_after_streak_threshold_not_immediately`
-///
 /// 旧设计 Normal→Warning 立即触发；新设计等 streak_threshold。
 /// 设 streak=1.0s、dt=0.5s：第一帧 0.5s 不应触发 Warning；
 /// 第二帧累积到 1.0s 才升级 Warning 与首次 Correction。
 #[test]
 fn warning_escalates_after_streak_threshold_not_immediately() {
-    let mut engine = PostureTickEngine::new(Some(1.0), None, None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 1.0,
+        ..Default::default()
+    });
 
     // 第一帧：0.5s < streak_threshold (1.0s)，应没有 WarningLevelChanged 也不应有 Correction
     let events = tick_yaw(&mut engine, PoseState::OffAxisLeft, 0.5);
@@ -406,13 +460,15 @@ fn warning_escalates_after_streak_threshold_not_immediately() {
     assert!(has_correction(&events));
 }
 
-/// `first_correction_and_warning_fire_on_same_tick`
-///
 /// 首次 Correction 与首次 Warning 升级同帧触发——
 /// 这是 ADR 0009 决策 5 的关键不变量。
 #[test]
 fn first_correction_and_warning_fire_on_same_tick() {
-    let mut engine = PostureTickEngine::new(Some(0.5), Some(10.0), None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 0.5,
+        off_axis_repeat_interval_seconds: 10.0,
+        ..Default::default()
+    });
 
     // 累积到 streak_threshold (0.5s) 这一帧
     let events = tick_yaw(&mut engine, PoseState::OffAxisLeft, 0.5);
@@ -432,13 +488,15 @@ fn first_correction_and_warning_fire_on_same_tick() {
     );
 }
 
-/// `no_face_resets_to_normal_directly_without_corrected`
-///
 /// NoFace 不走 Corrected 缓冲，直接归 Normal（ADR 0009 决策 7、9）——
 /// 故意与 FacingScreen 的重置语义不对称：人离开屏幕再发"已纠正"无对象。
 #[test]
 fn no_face_resets_to_normal_directly_without_corrected() {
-    let mut engine = PostureTickEngine::new(Some(1.0), Some(10.0), None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 1.0,
+        off_axis_repeat_interval_seconds: 10.0,
+        ..Default::default()
+    });
 
     // 进入 Warning：累积 1.0s 触发 Warning + 首次 Correction
     let _ = tick_yaw(&mut engine, PoseState::OffAxisLeft, 1.0);
@@ -461,15 +519,16 @@ fn no_face_resets_to_normal_directly_without_corrected() {
     );
 }
 
-/// `facing_screen_after_warning_routes_through_corrected_for_2s`
-///
 /// FacingScreen 之后走 Corrected 缓冲 2.0s（硬编码，非参数化，
 /// 见 ADR 0009 决策 6）再到 Normal。本测试用 dt=1.0s：
 /// 第 1 个 FacingScreen tick → Corrected；第 2 个仍 Corrected；
 /// 第 3 个才 Normal。
 #[test]
 fn facing_screen_after_warning_routes_through_corrected_for_2s() {
-    let mut engine = PostureTickEngine::new(Some(1.0), None, None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 1.0,
+        ..Default::default()
+    });
 
     // 进入 Warning
     let _ = tick_yaw(&mut engine, PoseState::OffAxisLeft, 1.0);
@@ -494,14 +553,15 @@ fn facing_screen_after_warning_routes_through_corrected_for_2s() {
     assert!(has_warning(&events, WarningLevel::Normal));
 }
 
-/// `corrected_to_warning_also_waits_for_streak_threshold`
-///
 /// Corrected → Warning 也必须等 streak_threshold，不立即重新升 Warning。
 /// 状态机对称原则（ADR 0009 决策 16）：
 /// Corrected 与 Normal 升级到 Warning 的条件一致。
 #[test]
 fn corrected_to_warning_also_waits_for_streak_threshold() {
-    let mut engine = PostureTickEngine::new(Some(1.0), None, None, None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 1.0,
+        ..Default::default()
+    });
 
     // Warning → Corrected 路径
     let _ = tick_yaw(&mut engine, PoseState::OffAxisLeft, 1.0);
@@ -521,15 +581,18 @@ fn corrected_to_warning_also_waits_for_streak_threshold() {
     assert!(has_correction(&events));
 }
 
-/// `second_correction_fires_at_severe_threshold_when_repeat_equals_severe`
-///
 /// streak=0.5、repeat=10、severe=10 的组合：
 /// 累积到 0.5s 首次 Correction；累积到 10.0s 时
 /// 第二次 Correction + Severe 升级同帧触发（同为 10.5 这一刻同时满足
 /// `next_correction_threshold=10.5` 与 `severe_threshold=10.0`）。
 #[test]
 fn second_correction_fires_at_severe_threshold_when_repeat_equals_severe() {
-    let mut engine = PostureTickEngine::new(Some(0.5), Some(10.0), Some(10.0), None, None);
+    let mut engine = PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 0.5,
+        off_axis_repeat_interval_seconds: 10.0,
+        off_axis_severe_threshold_seconds: 10.0,
+        ..Default::default()
+    });
 
     // 首次 Correction 在 cont=0.5
     let events = tick_yaw(&mut engine, PoseState::OffAxisLeft, 0.5);

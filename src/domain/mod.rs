@@ -6,3 +6,4 @@ pub mod event_log;
 pub mod paths;
 pub mod posture_tick_engine;
 pub mod snooze;
+pub mod thresholds;

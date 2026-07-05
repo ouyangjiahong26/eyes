@@ -14,6 +14,7 @@ use std::sync::{mpsc, Arc};
 use eyes_lib::domain::classifier::{HeadPose, PoseState};
 use eyes_lib::domain::config::{ConfigState, ConfigStore};
 use eyes_lib::domain::posture_tick_engine::{PostureTickEngine, SenseEvent, WarningLevel};
+use eyes_lib::domain::thresholds::TimingThresholds;
 use eyes_lib::monitoring::detector::Detector;
 use eyes_lib::monitoring::event_mapping;
 use eyes_lib::monitoring::event_sink::BevyEventSink;
@@ -108,13 +109,13 @@ fn collect_events(outputs: &[WorkerOutput]) -> Vec<SenseEvent> {
 }
 
 fn default_engine() -> PostureTickEngine {
-    PostureTickEngine::new(
-        Some(0.3),  // streak threshold
-        Some(2.0),  // repeat interval
-        Some(2.0),  // severe threshold（ADR 0009：原 repeat=2.0 等同 severe 旧语义）
-        Some(5.0),  // facing threshold
-        Some(10.0), // eyest threshold
-    )
+    PostureTickEngine::new(TimingThresholds {
+        off_axis_streak_threshold_seconds: 0.3,
+        off_axis_repeat_interval_seconds: 2.0,
+        off_axis_severe_threshold_seconds: 2.0, // ADR 0009：原 repeat=2.0 等同 severe 旧语义
+        facing_threshold_seconds: 5.0,
+        eyest_threshold_seconds: 10.0,
+    })
 }
 
 fn default_config_state() -> Arc<ConfigState> {

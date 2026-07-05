@@ -21,7 +21,7 @@ issue #84 重新评估 `PostureTickEngine` 的双 off-axis 计数器是否合并
 2. `continuous_seconds` 起点语义：进入本轴 off-axis（`is_off_for_self(state)` 为真）那一刻从 0 开始；切回 `FacingScreen` 或 `NoFace` 时重置为 0。
 3. **Normal/Corrected → Warning 触发条件**：`is_off_for_self(state) && continuous_seconds >= streak_threshold`。与首次 Correction 同步发出。
 4. **Warning → Severe 触发条件**：`continuous_seconds >= severe_threshold_seconds`（新增独立参数，默认 10.0s）。
-5. **Correction 触发时机**：`continuous_seconds` 依次越过 `streak_threshold`、`repeat_interval`、`2 * repeat_interval`、`3 * repeat_interval`... 时各发一次。首次与 Warning 升级同步；第二次与 Severe 升级同步。
+5. **Correction 触发时机**：首次在 `continuous_seconds >= streak_threshold` 时发出，与 Warning 升级同帧（同一 `if` 块，`posture_tick_engine.rs:149-158`）；发出后置 `next_correction_threshold = continuous_seconds + repeat_interval`（`:156-157`），此后每越过该阈值再发一次并递增（`:170-175`）。Severe 升级是另一个独立判断 `continuous_seconds >= severe_threshold`（`:162`），与 Correction 阈值互不依赖。默认 `repeat_interval == severe_threshold_seconds == 10s` 时第二次 Correction 恰好与 Severe 升级同帧；但二者是独立可调的产品参数——`repeat_interval` 管“重复提醒间隔”、`severe_threshold_seconds` 管“状态升级时机”——独立调整后不再严格同步。这是设计意图，而非耦合（见选项“Severe 阈值复用 `repeat_interval`——否决”）。
 6. **Corrected → Normal** 缓冲保持硬编码 2.0s，不参数化。
 7. **NoFace 状态**：`reset_warning()` → WarningLevel = Normal 且 continuous_seconds = 0。直接清零，**不**走 Corrected 流程。
 8. **FacingScreen 状态**：Warning/Severe → Corrected 缓冲 2s → Normal；`continuous_seconds` 在进入 Corrected 时清零。

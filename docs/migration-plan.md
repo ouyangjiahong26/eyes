@@ -173,7 +173,7 @@ Worker 不直接依赖任何 Tauri 类型。`events.rs` 负责把 `WorkerEvent` 
 ### M6 — 设置 + 校准 UI + Windows 开机自启
 
 - [ ] 设置页面可编辑 yaw 阈值、roll 阈值、摄像头编号、语言、sound_enabled、autostart_enabled。
-- [ ] 高级时间字段（`off_axis_streak_threshold_seconds`、`off_axis_repeat_interval_seconds`、`facing_threshold_seconds`、`eyest_threshold_seconds`）能通过 YAML 正确读写。
+- [ ] 高级时间字段（`off_axis_streak_threshold_seconds`、`off_axis_repeat_interval_seconds`、`off_axis_severe_threshold_seconds`、`facing_threshold_seconds`、`eyest_threshold_seconds`）能通过 YAML 正确读写。
 - [ ] 保存时发送 `update_config`；Worker 立即应用新阈值和新的中性位姿。
 - [ ] 更换摄像头编号后重新打开摄像头，重试路径保持正确。
 - [ ] 切换语言后主窗口、提醒窗口、托盘菜单文字同步刷新。

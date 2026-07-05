@@ -26,16 +26,14 @@ pub struct AppConfig {
     pub sound_enabled: bool,
     pub autostart_enabled: bool,
     pub snooze_until_iso: Option<String>,
-    pub off_axis_streak_threshold_seconds: f64,
-    pub off_axis_repeat_interval_seconds: f64,
-    pub off_axis_severe_threshold_seconds: f64,
-    pub facing_threshold_seconds: f64,
-    pub eyest_threshold_seconds: f64,
+    // issue #141：5 个时机阈值收进 TimingThresholds，经 serde(flatten) 平铺到
+    // YAML，旧配置文件（字段平铺）仍可反序列化。
+    #[serde(flatten)]
+    pub timing: super::thresholds::TimingThresholds,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
-        use super::defaults;
         Self {
             yaw_threshold: 5.0,
             pitch_threshold: 10.0,
@@ -48,11 +46,7 @@ impl Default for AppConfig {
             sound_enabled: true,
             autostart_enabled: false,
             snooze_until_iso: None,
-            off_axis_streak_threshold_seconds: defaults::OFF_AXIS_STREAK_THRESHOLD,
-            off_axis_repeat_interval_seconds: defaults::OFF_AXIS_REPEAT_INTERVAL,
-            off_axis_severe_threshold_seconds: defaults::OFF_AXIS_SEVERE_THRESHOLD,
-            facing_threshold_seconds: defaults::FACING_THRESHOLD,
-            eyest_threshold_seconds: defaults::EYEREST_THRESHOLD,
+            timing: super::thresholds::TimingThresholds::default(),
         }
     }
 }
@@ -239,14 +233,17 @@ neutral_pitch: -1.5
     #[test]
     fn round_trip_preserves_advanced_fields() {
         let config = AppConfig {
-            facing_threshold_seconds: 600.0,
-            eyest_threshold_seconds: 1800.0,
+            timing: crate::domain::thresholds::TimingThresholds {
+                facing_threshold_seconds: 600.0,
+                eyest_threshold_seconds: 1800.0,
+                ..Default::default()
+            },
             ..AppConfig::default()
         };
         let yaml = serde_yaml::to_string(&config).unwrap();
         let parsed: AppConfig = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(parsed.facing_threshold_seconds, 600.0);
-        assert_eq!(parsed.eyest_threshold_seconds, 1800.0);
+        assert_eq!(parsed.timing.facing_threshold_seconds, 600.0);
+        assert_eq!(parsed.timing.eyest_threshold_seconds, 1800.0);
     }
 
     #[test]

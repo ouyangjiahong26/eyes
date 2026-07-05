@@ -1,5 +1,5 @@
 use super::classifier::PoseState;
-use super::defaults;
+use super::thresholds::TimingThresholds;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum WarningLevel {
@@ -114,6 +114,24 @@ impl OffAxisState {
         self.is_off_for_self(state) || matches!(state, PoseState::FacingScreen | PoseState::NoFace)
     }
 
+    /// 越过 `next_correction_threshold` 时发出一次 Correction 并把阈值
+    /// 递增一个 `repeat_interval`。Warning 与 Severe 两态共享此逻辑：
+    /// Warning 态下可能与 Severe 升级同帧触发（第二次 Correction），
+    /// Severe 态下为后续重复提醒。
+    fn emit_due_correction(
+        &mut self,
+        events: &mut Vec<SenseEvent>,
+        state: PoseState,
+        repeat_interval: f64,
+    ) {
+        if let Some(due) = self.next_correction_threshold {
+            if self.continuous_seconds >= due {
+                events.push(SenseEvent::Correction { direction: state });
+                self.next_correction_threshold = Some(self.continuous_seconds + repeat_interval);
+            }
+        }
+    }
+
     /// 单轴完整 tick：所有 off-axis 派生事件从 `continuous_seconds` 单一时间轴派生。
     ///
     /// 触发条件（ADR 0009 决策 3-6）：
@@ -167,23 +185,11 @@ impl OffAxisState {
                         });
                     }
                     // Correction：可能与 Severe 升级同帧触发（第二次 Correction）
-                    if let Some(due) = self.next_correction_threshold {
-                        if self.continuous_seconds >= due {
-                            events.push(SenseEvent::Correction { direction: state });
-                            self.next_correction_threshold =
-                                Some(self.continuous_seconds + repeat_interval);
-                        }
-                    }
+                    self.emit_due_correction(&mut events, state, repeat_interval);
                 }
                 WarningLevel::Severe => {
                     // Severe 状态下的后续 Correction
-                    if let Some(due) = self.next_correction_threshold {
-                        if self.continuous_seconds >= due {
-                            events.push(SenseEvent::Correction { direction: state });
-                            self.next_correction_threshold =
-                                Some(self.continuous_seconds + repeat_interval);
-                        }
-                    }
+                    self.emit_due_correction(&mut events, state, repeat_interval);
                 }
             }
         } else if state == PoseState::FacingScreen {
@@ -247,27 +253,18 @@ pub struct PostureTickEngine {
 
 impl Default for PostureTickEngine {
     fn default() -> Self {
-        Self::new(None, None, None, None, None)
+        Self::new(TimingThresholds::default())
     }
 }
 
 impl PostureTickEngine {
-    pub fn new(
-        off_axis_streak_threshold_seconds: Option<f64>,
-        off_axis_repeat_interval_seconds: Option<f64>,
-        off_axis_severe_threshold_seconds: Option<f64>,
-        facing_threshold_seconds: Option<f64>,
-        eyest_threshold_seconds: Option<f64>,
-    ) -> Self {
+    pub fn new(timing: TimingThresholds) -> Self {
         Self {
-            off_axis_streak_threshold: off_axis_streak_threshold_seconds
-                .unwrap_or(defaults::OFF_AXIS_STREAK_THRESHOLD),
-            off_axis_repeat_interval: off_axis_repeat_interval_seconds
-                .unwrap_or(defaults::OFF_AXIS_REPEAT_INTERVAL),
-            off_axis_severe_threshold: off_axis_severe_threshold_seconds
-                .unwrap_or(defaults::OFF_AXIS_SEVERE_THRESHOLD),
-            facing_threshold: facing_threshold_seconds.unwrap_or(defaults::FACING_THRESHOLD),
-            eyest_threshold: eyest_threshold_seconds.unwrap_or(defaults::EYEREST_THRESHOLD),
+            off_axis_streak_threshold: timing.off_axis_streak_threshold_seconds,
+            off_axis_repeat_interval: timing.off_axis_repeat_interval_seconds,
+            off_axis_severe_threshold: timing.off_axis_severe_threshold_seconds,
+            facing_threshold: timing.facing_threshold_seconds,
+            eyest_threshold: timing.eyest_threshold_seconds,
             facing_seconds: 0.0,
             presence_seconds: 0.0,
             snoozed: false,
@@ -289,19 +286,12 @@ impl PostureTickEngine {
     }
 
     /// 更新时机相关阈值，保留所有累加状态。
-    pub fn update_timing(
-        &mut self,
-        off_axis_streak_threshold: f64,
-        off_axis_repeat_interval: f64,
-        off_axis_severe_threshold: f64,
-        facing_threshold: f64,
-        eyest_threshold: f64,
-    ) {
-        self.off_axis_streak_threshold = off_axis_streak_threshold;
-        self.off_axis_repeat_interval = off_axis_repeat_interval;
-        self.off_axis_severe_threshold = off_axis_severe_threshold;
-        self.facing_threshold = facing_threshold;
-        self.eyest_threshold = eyest_threshold;
+    pub fn update_timing(&mut self, timing: TimingThresholds) {
+        self.off_axis_streak_threshold = timing.off_axis_streak_threshold_seconds;
+        self.off_axis_repeat_interval = timing.off_axis_repeat_interval_seconds;
+        self.off_axis_severe_threshold = timing.off_axis_severe_threshold_seconds;
+        self.facing_threshold = timing.facing_threshold_seconds;
+        self.eyest_threshold = timing.eyest_threshold_seconds;
     }
 
     /// 当前综合警告级别（取两轴中更严重者）。
@@ -378,13 +368,13 @@ mod tests {
 
     #[test]
     fn update_timing_preserves_accumulated_state() {
-        let mut engine = PostureTickEngine::new(
-            Some(0.3),
-            Some(10.0),
-            Some(15.0),
-            Some(300.0),
-            Some(900.0),
-        );
+        let mut engine = PostureTickEngine::new(TimingThresholds {
+            off_axis_streak_threshold_seconds: 0.3,
+            off_axis_repeat_interval_seconds: 10.0,
+            off_axis_severe_threshold_seconds: 15.0,
+            facing_threshold_seconds: 300.0,
+            eyest_threshold_seconds: 900.0,
+        });
 
         // 累积一些 facing_seconds
         for _ in 0..10 {
@@ -404,7 +394,13 @@ mod tests {
         let prev_presence = engine.presence_seconds;
 
         // 更新阈值
-        engine.update_timing(1.0, 30.0, 20.0, 600.0, 1800.0);
+        engine.update_timing(TimingThresholds {
+            off_axis_streak_threshold_seconds: 1.0,
+            off_axis_repeat_interval_seconds: 30.0,
+            off_axis_severe_threshold_seconds: 20.0,
+            facing_threshold_seconds: 600.0,
+            eyest_threshold_seconds: 1800.0,
+        });
 
         // 累加状态不变
         assert_eq!(engine.facing_seconds, prev_facing);
@@ -420,8 +416,13 @@ mod tests {
 
     #[test]
     fn update_timing_does_not_reset_warning_state() {
-        let mut engine =
-            PostureTickEngine::new(Some(0.1), Some(10.0), Some(5.0), Some(300.0), Some(900.0));
+        let mut engine = PostureTickEngine::new(TimingThresholds {
+            off_axis_streak_threshold_seconds: 0.1,
+            off_axis_repeat_interval_seconds: 10.0,
+            off_axis_severe_threshold_seconds: 5.0,
+            facing_threshold_seconds: 300.0,
+            eyest_threshold_seconds: 900.0,
+        });
 
         // 触发 Warning 状态
         for _ in 0..5 {
@@ -430,7 +431,13 @@ mod tests {
         assert_eq!(engine.warning_level(), WarningLevel::Warning);
 
         // 更新阈值
-        engine.update_timing(0.5, 5.0, 20.0, 100.0, 500.0);
+        engine.update_timing(TimingThresholds {
+            off_axis_streak_threshold_seconds: 0.5,
+            off_axis_repeat_interval_seconds: 5.0,
+            off_axis_severe_threshold_seconds: 20.0,
+            facing_threshold_seconds: 100.0,
+            eyest_threshold_seconds: 500.0,
+        });
 
         // 警告状态不变
         assert_eq!(engine.warning_level(), WarningLevel::Warning);

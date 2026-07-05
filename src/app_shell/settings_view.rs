@@ -43,8 +43,8 @@ impl SettingsDraft {
             sound_enabled: config.sound_enabled,
             autostart_enabled: config.autostart_enabled,
             language: config.language.clone(),
-            off_axis_streak_threshold: config.off_axis_streak_threshold_seconds,
-            off_axis_repeat_interval: config.off_axis_repeat_interval_seconds,
+            off_axis_streak_threshold: config.timing.off_axis_streak_threshold_seconds,
+            off_axis_repeat_interval: config.timing.off_axis_repeat_interval_seconds,
             camera_list,
             advanced_visible: false,
         }
@@ -747,8 +747,8 @@ pub(crate) fn draft_to_config(draft: &SettingsDraft, base: &AppConfig) -> AppCon
     cfg.sound_enabled = draft.sound_enabled;
     cfg.autostart_enabled = draft.autostart_enabled;
     cfg.language = draft.language.clone();
-    cfg.off_axis_streak_threshold_seconds = draft.off_axis_streak_threshold;
-    cfg.off_axis_repeat_interval_seconds = draft.off_axis_repeat_interval;
+    cfg.timing.off_axis_streak_threshold_seconds = draft.off_axis_streak_threshold;
+    cfg.timing.off_axis_repeat_interval_seconds = draft.off_axis_repeat_interval;
     cfg
 }
 
@@ -912,10 +912,10 @@ mod tests {
     fn draft_to_config_preserves_unedited_fields() {
         let mut base = AppConfig::default();
         base.neutral_yaw = 3.0;
-        base.facing_threshold_seconds = 600.0;
+        base.timing.facing_threshold_seconds = 600.0;
         let draft = SettingsDraft::from_config(&base, vec![]);
         let result = draft_to_config(&draft, &base);
         assert_eq!(result.neutral_yaw, 3.0);
-        assert_eq!(result.facing_threshold_seconds, 600.0);
+        assert_eq!(result.timing.facing_threshold_seconds, 600.0);
     }
 }
