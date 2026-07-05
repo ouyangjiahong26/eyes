@@ -1,10 +1,14 @@
-pub mod calibration_view;
 pub mod contract;
-pub mod main_view;
-pub mod notification;
 pub mod platform;
-pub mod settings_view;
-pub mod tray;
+pub mod system;
+pub mod ui;
+
+// 兼容旧路径：外部代码通过 `app_shell::main_view` 等访问时仍可解析。
+pub use system::notification;
+pub use system::tray;
+pub use ui::calibration_view;
+pub use ui::main_view;
+pub use ui::settings_view;
 
 use bevy::prelude::*;
 

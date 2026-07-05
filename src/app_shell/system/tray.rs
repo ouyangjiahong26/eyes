@@ -13,7 +13,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem};
 use tray_icon::{Icon, TrayIconBuilder};
 
-use super::contract::{
+use crate::app_shell::contract::{
     MENU_PAUSE_30_ID, MENU_PAUSE_60_ID, MENU_PAUSE_INDEFINITE_ID, MENU_QUIT_ID, MENU_RESUME_ID,
     MENU_SHOW_ID,
 };
