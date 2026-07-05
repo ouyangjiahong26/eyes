@@ -46,7 +46,7 @@ DLT solvePnP 管道，依赖 linalg3 和 `nalgebra::SVD`。包含 `build_dlt_mat
 - `linalg3.rs` 可被未来的其他模块复用（如果需要 3×3 矩阵运算）
 - `solve_pnp.rs` 集中了 DLT 管道的所有步骤，便于整体替换（比如未来用 opencv::solve_pnp）
 - `nalgebra` 依赖边界更清晰：只在 solve_pnp.rs 中出现
-- 需要同步更新 `docs/migration-plan.md` 中的 `pose.rs` 命名为 `solve_pnp.rs`
+- 需要同步更新 `docs/legacy/migration-plan.md` 中的 `pose.rs` 命名为 `solve_pnp.rs`
 
 ## 关联
 

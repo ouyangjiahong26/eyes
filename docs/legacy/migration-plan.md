@@ -1,6 +1,20 @@
-# Rust 重写迁移计划
+# Rust 重写迁移计划（历史文档）
 
-本计划是 [ADR 0005](adr/0005-rust-rewrite-direction.md) 的执行层。它将完整的 Rust/Tauri 重写拆分为八个可独立运行的里程碑（Milestone），每个里程碑附带明确的验收清单。Python 源码保留至 M8 再删除。
+> **本文档描述的是已放弃的 Tauri 2 方案，仅作历史记录保留。**
+>
+> 本计划是 [ADR 0005](../adr/0005-rust-rewrite-direction.md) 的执行层，对应
+> 0.2.0–0.3.0 的 Rust/Tauri 重写。该方案在 0.4.0 被整体替换：UI 层从
+> Tauri + React + WebView 改为纯 Rust 的 Bevy 应用（详见根目录
+> [CHANGELOG.md](../../CHANGELOG.md) 的 0.4.0 条目）。
+>
+> 因此，本文档中的目录结构（`src-tauri/`、`frontend/`）、Tauri 命令、Tauri 事件
+> 适配层等，在当前代码中**均不存在**。它不再代表当前架构。
+>
+> **当前架构以根目录 [README.md](../../README.md) 的「架构」与「数据流」小节为准。**
+
+---
+
+本计划将完整的 Rust/Tauri 重写拆分为八个可独立运行的里程碑（Milestone），每个里程碑附带明确的验收清单。Python 源码保留至 M8 再删除。
 
 ## 架构总览
 

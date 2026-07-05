@@ -237,7 +237,7 @@ enum WorkerEvent {
 
 ### 迁移里程碑
 
-执行分为八个里程碑。每个里程碑在 `docs/migration-plan.md` 中有自己的验收清单：
+执行分为八个里程碑。每个里程碑在 `docs/legacy/migration-plan.md` 中有自己的验收清单：
 
 - M1 — Tauri 骨架
 - M2 — Rust 领域核心 + 移植的测试
@@ -286,7 +286,7 @@ enum WorkerEvent {
 
 ## 补充说明
 
-- 这个 PRD 是里程碑级 issue 的父级。每个里程碑（M1–M8）在本 PRD 被接受后，应作为独立的 ready-for-agent issue 根据 `docs/migration-plan.md` 提交。
+- 这个 PRD 是里程碑级 issue 的父级。每个里程碑（M1–M8）在本 PRD 被接受后，应作为独立的 ready-for-agent issue 根据 `docs/legacy/migration-plan.md` 提交。
 - 仓库中已有的 ADR 约束本次重写的行为：
   - ADR 0001（仅 yaw/roll——保持相同的轴）。
   - ADR 0002（累计时间计时器——在 PostureTickEngine 中保留）。

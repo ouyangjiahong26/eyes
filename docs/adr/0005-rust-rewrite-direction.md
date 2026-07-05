@@ -46,7 +46,7 @@ Eyes 正在用 Rust 全面重写为 Tauri 2 桌面应用。Python / PySide6 / Me
 
 ## 后果
 
-- 迁移不能缩减为单个 PR；它是按可运行里程碑执行的序列，每个有自己的验收清单（[migration-plan.md](../migration-plan.md)）。
+- 迁移不能缩减为单个 PR；它是按可运行里程碑执行的序列，每个有自己的验收清单（[migration-plan.md](../legacy/migration-plan.md)）。
 - OpenCV 和 ONNX Runtime DLL 在 Windows 上的打包是真正的打包工作，必须在 M7 完成前解决。
 - 行为级验收意味着 Python 测试套件是姿态、暂停、校准和事件日志语义的事实来源。任何偏离都视为 Rust bug，而非"Rust 版本选择了不同行为"。
 - 跳过渲染端摄像头访问（`getUserMedia`）使后台监测可靠，但意味着预览帧必须编码并通过 IPC 通道传输。
