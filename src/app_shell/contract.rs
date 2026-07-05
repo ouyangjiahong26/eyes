@@ -8,24 +8,6 @@ pub const MENU_PAUSE_INDEFINITE_ID: &str = "pause_indefinite";
 pub const MENU_RESUME_ID: &str = "resume";
 pub const MENU_QUIT_ID: &str = "quit";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CloseDecision {
-    HideToTray,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SecondInstanceDecision {
-    FocusMainWindow,
-}
-
-pub fn close_requested_decision() -> CloseDecision {
-    CloseDecision::HideToTray
-}
-
-pub fn second_instance_decision() -> SecondInstanceDecision {
-    SecondInstanceDecision::FocusMainWindow
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -37,18 +19,5 @@ mod tests {
         assert_eq!(MENU_SHOW_ID, "show");
         assert_eq!(MENU_SETTINGS_ID, "settings");
         assert_eq!(MENU_QUIT_ID, "quit");
-    }
-
-    #[test]
-    fn close_request_hides_to_tray_instead_of_exiting() {
-        assert_eq!(close_requested_decision(), CloseDecision::HideToTray);
-    }
-
-    #[test]
-    fn second_instance_focuses_the_existing_main_window() {
-        assert_eq!(
-            second_instance_decision(),
-            SecondInstanceDecision::FocusMainWindow
-        );
     }
 }
