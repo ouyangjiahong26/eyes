@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.6] — 2026-07-05
+
+### 修复
+
+- **点击关闭按钮仍直接退出**（v0.4.5 未生效）：Bevy 0.15 的 `WindowPlugin` 默认注册 `close_when_requested` 系统，把窗口标记为 `ClosingWindow` → 下一帧 despawn → `exit_on_all_closed` 触发 `AppExit` 直接退出。v0.4.5 仅设 `Window.visible = false` 但窗口已被 despawn 流程接管，所以仍然退出。修复：`WindowPlugin { close_when_requested: false }` 禁用默认关闭行为，让 `WindowCloseRequested` 事件**只**发事件不关闭窗口，由 `intercept_window_close_to_tray` 拦截设 `Window.visible = false`（entity 仍存活，主窗口不触发 `exit_on_primary_closed`）。
+
 ## [0.4.5] — 2026-07-05
 
 ### 新增

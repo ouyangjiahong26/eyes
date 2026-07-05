@@ -81,6 +81,12 @@ pub fn run() {
                     resolution: WindowResolution::new(800.0, 600.0),
                     ..default()
                 }),
+                // 禁用默认的 `close_when_requested` 系统：它会把窗口标记为
+                // `ClosingWindow` → 下一帧 despawn → `exit_on_all_closed` 触发
+                // AppExit 直接退出。禁用后，`WindowCloseRequested` 事件**只**
+                // 发事件不关闭窗口，由 `intercept_window_close_to_tray` 拦截
+                // 设 `Window.visible = false` 隐藏到托盘，entity 仍存活。
+                close_when_requested: false,
                 ..default()
             }),
         )
