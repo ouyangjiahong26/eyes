@@ -2,6 +2,8 @@
 "settings.title" = "Settings"
 "settings.yaw_threshold" = "Yaw Threshold (°)"
 "settings.pitch_threshold" = "Pitch Threshold (°)"
+"settings.yaw_hysteresis" = "Yaw Hysteresis (°)"
+"settings.pitch_hysteresis" = "Pitch Hysteresis (°)"
 "settings.camera_index" = "Camera"
 "settings.language" = "Language"
 "settings.sound_enabled" = "Sound"
@@ -14,6 +16,9 @@
 "settings.advanced" = "Advanced"
 "settings.streak_threshold" = "First Prompt Delay (s)"
 "settings.repeat_interval" = "Repeat Interval (s)"
+"settings.severe_threshold" = "Severe Upgrade Delay (s)"
+"settings.facing_threshold" = "Good Posture Reward (s)"
+"settings.eyerest_threshold" = "Eye Rest Interval (s)"
 
 # Calibration
 "calibration.countdown" = "{seconds}s remaining"

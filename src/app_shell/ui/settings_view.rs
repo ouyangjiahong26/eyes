@@ -24,12 +24,17 @@ use crate::AppFont;
 pub struct SettingsDraft {
     pub yaw_threshold: f64,
     pub pitch_threshold: f64,
+    pub yaw_hysteresis: f64,
+    pub pitch_hysteresis: f64,
     pub camera_index: u32,
     pub sound_enabled: bool,
     pub autostart_enabled: bool,
     pub language: String,
     pub off_axis_streak_threshold: f64,
     pub off_axis_repeat_interval: f64,
+    pub off_axis_severe_threshold: f64,
+    pub facing_threshold: f64,
+    pub eyerest_threshold: f64,
     pub camera_list: Vec<CameraDevice>,
     pub advanced_visible: bool,
 }
@@ -39,12 +44,17 @@ impl SettingsDraft {
         Self {
             yaw_threshold: config.yaw_threshold,
             pitch_threshold: config.pitch_threshold,
+            yaw_hysteresis: config.yaw_hysteresis,
+            pitch_hysteresis: config.pitch_hysteresis,
             camera_index: config.camera_index,
             sound_enabled: config.sound_enabled,
             autostart_enabled: config.autostart_enabled,
             language: config.language.clone(),
             off_axis_streak_threshold: config.timing.off_axis_streak_threshold_seconds,
             off_axis_repeat_interval: config.timing.off_axis_repeat_interval_seconds,
+            off_axis_severe_threshold: config.timing.off_axis_severe_threshold_seconds,
+            facing_threshold: config.timing.facing_threshold_seconds,
+            eyerest_threshold: config.timing.eyest_threshold_seconds,
             camera_list,
             advanced_visible: false,
         }
@@ -66,6 +76,10 @@ const YAW_PITCH_MIN: f64 = 1.0;
 const YAW_PITCH_MAX: f64 = 30.0;
 const YAW_PITCH_STEP: f64 = 0.5;
 
+const HYSTERESIS_MIN: f64 = 0.0;
+const HYSTERESIS_MAX: f64 = 10.0;
+const HYSTERESIS_STEP: f64 = 0.25;
+
 const STREAK_MIN: f64 = 0.0;
 const STREAK_MAX: f64 = 5.0;
 const STREAK_STEP: f64 = 0.1;
@@ -73,6 +87,18 @@ const STREAK_STEP: f64 = 0.1;
 const REPEAT_MIN: f64 = 1.0;
 const REPEAT_MAX: f64 = 60.0;
 const REPEAT_STEP: f64 = 1.0;
+
+const SEVERE_MIN: f64 = 5.0;
+const SEVERE_MAX: f64 = 60.0;
+const SEVERE_STEP: f64 = 1.0;
+
+const FACING_MIN: f64 = 60.0; // 1 分钟
+const FACING_MAX: f64 = 1800.0; // 30 分钟
+const FACING_STEP: f64 = 30.0;
+
+const EYEREST_MIN: f64 = 300.0; // 5 分钟
+const EYEREST_MAX: f64 = 3600.0; // 60 分钟
+const EYEREST_STEP: f64 = 60.0;
 
 const LANGUAGES: &[(&str, &str)] = &[("zh-CN", "中文"), ("en", "English")];
 
@@ -91,8 +117,13 @@ pub(crate) struct AdvancedSection;
 pub(crate) enum SliderKind {
     Yaw,
     Pitch,
+    YawHyst,
+    PitchHyst,
     Streak,
     Repeat,
+    Severe,
+    Facing,
+    Eyest,
 }
 
 /// 滑块轨道（可点击区域）。
@@ -195,6 +226,10 @@ pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont
             spawn_slider_row(panel, &font, SliderKind::Yaw, "settings.yaw_threshold");
             // ── pitch 阈值 ───────────────────────────────────────
             spawn_slider_row(panel, &font, SliderKind::Pitch, "settings.pitch_threshold");
+            // ── yaw 回滞 ─────────────────────────────────────────
+            spawn_slider_row(panel, &font, SliderKind::YawHyst, "settings.yaw_hysteresis");
+            // ── pitch 回滞 ───────────────────────────────────────
+            spawn_slider_row(panel, &font, SliderKind::PitchHyst, "settings.pitch_hysteresis");
 
             // ── 校准按钮 ─────────────────────────────────────────
             panel
@@ -294,6 +329,9 @@ pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont
                 .with_children(|adv| {
                     spawn_slider_row(adv, &font, SliderKind::Streak, "settings.streak_threshold");
                     spawn_slider_row(adv, &font, SliderKind::Repeat, "settings.repeat_interval");
+                    spawn_slider_row(adv, &font, SliderKind::Severe, "settings.severe_threshold");
+                    spawn_slider_row(adv, &font, SliderKind::Facing, "settings.facing_threshold");
+                    spawn_slider_row(adv, &font, SliderKind::Eyest, "settings.eyerest_threshold");
                 });
 
             // ── 底部按钮 ─────────────────────────────────────────
@@ -404,7 +442,7 @@ fn spawn_nav_row(
                 ..default()
             })
             .with_children(|nav| {
-                spawn_nav_button(nav, "‹", prev);
+                spawn_nav_button(nav, font, "‹", prev);
                 nav.spawn((
                     Text::new("—"),
                     TextFont { font: font.clone(), font_size: 15.0, ..default() },
@@ -415,12 +453,17 @@ fn spawn_nav_row(
                     },
                     label_marker,
                 ));
-                spawn_nav_button(nav, "›", next);
+                spawn_nav_button(nav, font, "›", next);
             });
         });
 }
 
-fn spawn_nav_button(parent: &mut ChildBuilder, _label: &str, nav: impl Component + Clone) {
+fn spawn_nav_button(
+    parent: &mut ChildBuilder,
+    font: &Handle<Font>,
+    label: &str,
+    nav: impl Component + Clone,
+) {
     parent.spawn((
         Node {
             width: Val::Px(32.0),
@@ -433,6 +476,9 @@ fn spawn_nav_button(parent: &mut ChildBuilder, _label: &str, nav: impl Component
         BorderColor(Color::srgb(0.4, 0.4, 0.45)),
         Interaction::default(),
         nav,
+        Text::new(label),
+        TextFont { font: font.clone(), font_size: 18.0, ..default() },
+        TextColor(Color::WHITE),
     ));
 }
 
@@ -518,6 +564,13 @@ pub(crate) fn handle_slider_click(
             SliderKind::Pitch => {
                 draft.pitch_threshold = snap(frac, YAW_PITCH_MIN, YAW_PITCH_MAX, YAW_PITCH_STEP);
             }
+            SliderKind::YawHyst => {
+                draft.yaw_hysteresis = snap(frac, HYSTERESIS_MIN, HYSTERESIS_MAX, HYSTERESIS_STEP);
+            }
+            SliderKind::PitchHyst => {
+                draft.pitch_hysteresis =
+                    snap(frac, HYSTERESIS_MIN, HYSTERESIS_MAX, HYSTERESIS_STEP);
+            }
             SliderKind::Streak => {
                 draft.off_axis_streak_threshold =
                     snap(frac, STREAK_MIN, STREAK_MAX, STREAK_STEP);
@@ -525,6 +578,18 @@ pub(crate) fn handle_slider_click(
             SliderKind::Repeat => {
                 draft.off_axis_repeat_interval =
                     snap(frac, REPEAT_MIN, REPEAT_MAX, REPEAT_STEP);
+            }
+            SliderKind::Severe => {
+                draft.off_axis_severe_threshold =
+                    snap(frac, SEVERE_MIN, SEVERE_MAX, SEVERE_STEP);
+            }
+            SliderKind::Facing => {
+                draft.facing_threshold =
+                    snap(frac, FACING_MIN, FACING_MAX, FACING_STEP);
+            }
+            SliderKind::Eyest => {
+                draft.eyerest_threshold =
+                    snap(frac, EYEREST_MIN, EYEREST_MAX, EYEREST_STEP);
             }
         }
     }
@@ -659,6 +724,14 @@ pub(crate) fn refresh_settings_ui(
                 pct(draft.pitch_threshold, YAW_PITCH_MIN, YAW_PITCH_MAX),
                 format!("{:.1}°", draft.pitch_threshold),
             ),
+            SliderKind::YawHyst => (
+                pct(draft.yaw_hysteresis, HYSTERESIS_MIN, HYSTERESIS_MAX),
+                format!("{:.2}°", draft.yaw_hysteresis),
+            ),
+            SliderKind::PitchHyst => (
+                pct(draft.pitch_hysteresis, HYSTERESIS_MIN, HYSTERESIS_MAX),
+                format!("{:.2}°", draft.pitch_hysteresis),
+            ),
             SliderKind::Streak => (
                 pct(
                     draft.off_axis_streak_threshold,
@@ -674,6 +747,22 @@ pub(crate) fn refresh_settings_ui(
                     REPEAT_MAX,
                 ),
                 format!("{:.0}s", draft.off_axis_repeat_interval),
+            ),
+            SliderKind::Severe => (
+                pct(
+                    draft.off_axis_severe_threshold,
+                    SEVERE_MIN,
+                    SEVERE_MAX,
+                ),
+                format!("{:.0}s", draft.off_axis_severe_threshold),
+            ),
+            SliderKind::Facing => (
+                pct(draft.facing_threshold, FACING_MIN, FACING_MAX),
+                format!("{:.0}s", draft.facing_threshold),
+            ),
+            SliderKind::Eyest => (
+                pct(draft.eyerest_threshold, EYEREST_MIN, EYEREST_MAX),
+                format!("{:.0}s", draft.eyerest_threshold),
             ),
         };
         node.width = Val::Percent(frac as f32 * 100.0);
@@ -743,12 +832,17 @@ pub(crate) fn draft_to_config(draft: &SettingsDraft, base: &AppConfig) -> AppCon
     let mut cfg = base.clone();
     cfg.yaw_threshold = draft.yaw_threshold;
     cfg.pitch_threshold = draft.pitch_threshold;
+    cfg.yaw_hysteresis = draft.yaw_hysteresis;
+    cfg.pitch_hysteresis = draft.pitch_hysteresis;
     cfg.camera_index = draft.camera_index;
     cfg.sound_enabled = draft.sound_enabled;
     cfg.autostart_enabled = draft.autostart_enabled;
     cfg.language = draft.language.clone();
     cfg.timing.off_axis_streak_threshold_seconds = draft.off_axis_streak_threshold;
     cfg.timing.off_axis_repeat_interval_seconds = draft.off_axis_repeat_interval;
+    cfg.timing.off_axis_severe_threshold_seconds = draft.off_axis_severe_threshold;
+    cfg.timing.facing_threshold_seconds = draft.facing_threshold;
+    cfg.timing.eyest_threshold_seconds = draft.eyerest_threshold;
     cfg
 }
 

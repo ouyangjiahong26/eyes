@@ -109,6 +109,7 @@ pub fn run() {
             Update,
             (
                 handle_tray_commands,
+                intercept_window_close_to_tray,
                 forward_monitoring_events,
                 update_pose_state,
                 update_preview_texture,
@@ -127,10 +128,9 @@ pub fn run() {
                 handle_advanced_toggle,
                 dispatch_button_click,
                 refresh_settings_ui,
-                handle_save,
-                handle_cancel,
             ),
         )
+        .add_systems(Update, (handle_save, handle_cancel))
         .add_systems(
             Update,
             (
@@ -215,12 +215,28 @@ fn load_system_cjk_font(fonts: &mut Assets<Font>) -> Handle<Font> {
     Handle::default()
 }
 
+/// 拦截窗口关闭按钮：隐藏主窗口而不是退出整个应用。
+///
+/// 用户从主窗口标题栏点 X → 隐藏到托盘（背景 worker 继续监测坐姿）。
+/// 完全退出走托盘 Quit 菜单（见 `handle_tray_commands`）。
+fn intercept_window_close_to_tray(
+    mut close_events: EventReader<bevy::window::WindowCloseRequested>,
+    mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
+) {
+    for _ev in close_events.read() {
+        if let Ok(mut window) = windows.get_single_mut() {
+            window.visible = false;
+        }
+    }
+}
+
 /// 轮询托盘命令，转发为 Bevy 行为。
 fn handle_tray_commands(
     tray: Res<TrayCommands>,
     worker: Res<WorkerHandle>,
     mut snooze: ResMut<SnoozeResource>,
     mut exit: EventWriter<AppExit>,
+    mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
 ) {
     let rx = tray.0.lock().unwrap();
     // try_recv 非阻塞轮询；没事件时立即返回。
@@ -232,8 +248,10 @@ fn handle_tray_commands(
                 exit.send(AppExit::Success);
             }
             TrayMenuCommand::Open => {
-                // 窗口默认可见，Open 暂为 no-op。
-                // 后续切片实现窗口隐藏/恢复时在此处理。
+                // 托盘 Open 菜单：从隐藏态恢复主窗口。
+                if let Ok(mut window) = windows.get_single_mut() {
+                    window.visible = true;
+                }
             }
             TrayMenuCommand::Pause30Min => {
                 let _ = worker.0.send(WorkerCommand::Snooze(30.0 * 60.0));

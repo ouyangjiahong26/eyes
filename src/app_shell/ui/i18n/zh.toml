@@ -2,6 +2,8 @@
 "settings.title" = "设置"
 "settings.yaw_threshold" = "偏头阈值（度）"
 "settings.pitch_threshold" = "俯仰阈值（度）"
+"settings.yaw_hysteresis" = "偏头回滞（度）"
+"settings.pitch_hysteresis" = "俯仰回滞（度）"
 "settings.camera_index" = "摄像头"
 "settings.language" = "语言"
 "settings.sound_enabled" = "提示音"
@@ -14,6 +16,9 @@
 "settings.advanced" = "高级设置"
 "settings.streak_threshold" = "首次提示延迟（秒）"
 "settings.repeat_interval" = "重复提示间隔（秒）"
+"settings.severe_threshold" = "严重升级延迟（秒）"
+"settings.facing_threshold" = "正视奖励间隔（秒）"
+"settings.eyerest_threshold" = "护眼提醒间隔（秒）"
 
 # 校准
 "calibration.countdown" = "剩余 {seconds} 秒"

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.5] — 2026-07-05
+
+### 新增
+
+- **设置面板 5 个新滑块**：
+  - `settings.yaw_hysteresis` / `settings.pitch_hysteresis`：偏头/俯仰回滞区间（避免阈值附近抖动报警）
+  - `settings.severe_threshold`：偏离多久升级到 Severe（更强烈报警）
+  - `settings.facing_threshold`：正视屏幕多久触发 GoodPosture（"你可以休息了"）
+  - `settings.eyerest_threshold`：在屏幕前多久护眼提醒（"该休息了"）
+- **关闭窗口改为隐藏到托盘**：拦截 `WindowCloseRequested` 事件，隐藏主窗口而不是退出整个应用。后台 worker 继续监测坐姿。完全退出走托盘 Quit 菜单。
+- **语言按钮变箭头**：调整语言的按钮原本是方块（`spawn_nav_button` 的 `_label` 参数未使用），现在显示 `‹` / `›` 字符（同时摄像头选择按钮也修复）。
+
+### 修复
+
+- 摄像头/语言切换按钮显示空白方块：`spawn_nav_button` 接受 `label` 但未 spawn Text 组件，传给 font 和 label 后正常显示箭头。
+
 ## [0.4.4] — 2026-07-05
 
 ### 修复

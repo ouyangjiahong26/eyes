@@ -1,6 +1,6 @@
 [package]
 name = "eyes"
-version = "0.4.4"
+version = "0.4.5"
 edition = "2021"
 default-run = "eyes"
 description = "桌面坐姿监测与护眼提醒工具"
