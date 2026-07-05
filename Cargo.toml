@@ -4,6 +4,7 @@ version = "0.4.0"
 edition = "2021"
 default-run = "eyes"
 description = "桌面坐姿监测与护眼提醒工具"
+authors = ["cislunarspace <cislunarspace@users.noreply.github.com>"]
 
 # cargo-wix 配置。`cargo wix` 读取此节生成 MSI。
 # 完整字段见 https://volans-.github.io/cargo-wix/
@@ -127,6 +128,33 @@ long_description = "通过摄像头监测头部姿态，提醒你保持正确坐
 #   lib/    — ONNX Runtime 动态库（.so），由发布脚本在打包前从 ort 构建产物暂存到此目录
 # OpenCV 不打包：Linux 包声明依赖系统 libopencv（见 build.rs 的 pkg-config 校验）。
 resources = ["models", "lib"]
+# Linux 包运行时依赖（cargo-bundle 在生成 .deb 时写入 control 字段 Depends）。
+# libc6 兜底：deb 构建机可能默认装旧版 glibc；libopencv-core4.6 与系统 OpenCV 头文件版本对齐。
+deb_depends = ["libc6 (>= 2.31)", "libopencv-core4.6 (>= 4.6.0)"]
+
+# ── Linux RPM 打包（cargo-rpm）────────────────────────────────────
+# `cargo rpm build` 读取以下配置产出 .rpm 包。
+# 工具本身需单独安装：cargo install cargo-rpm
+# 字段语义见 cargo-rpm 源码 src/config.rs：
+#   [package.metadata.rpm]           —— 包名覆盖
+#   [package.metadata.rpm.targets]   —— 二进制目标，键名=crate 二进制名，path=安装绝对路径
+#   [package.metadata.rpm.files]     —— 额外文件，键名=文件名，path=安装绝对路径
+# 注意：files 段的文件源不在 Cargo.toml 里——cargo-rpm 期望它们位于 .rpm/ 目录下。
+# 打包前需把 models/MANIFEST.toml 等资源先 cp 到 .rpm/，由发布脚本（task-Z 之后）完成。
+# name / version / release / summary / description / license 不在此处声明，
+# 一律从 [package] 段读取——所以上面补的 description / version 在此自动复用。
+[package.metadata.rpm]
+package = "eyes"
+
+# 默认二进制目标：cargo-rpm 从 target/release/eyes（路径由其内部探测）拷贝到 /usr/bin/eyes。
+[package.metadata.rpm.targets]
+eyes = { path = "/usr/bin/eyes" }
+
+# 资源文件：ONNX 模型与清单随包分发到 /usr/lib/eyes/models/。
+# 文件本身需提前放到 .rpm/ 目录下同名的文件，cargo-rpm 按键名匹配。
+[package.metadata.rpm.files]
+"face_detection_yunet_2023mar.onnx" = { path = "/usr/lib/eyes/models/face_detection_yunet_2023mar.onnx" }
+"MANIFEST.toml" = { path = "/usr/lib/eyes/models/MANIFEST.toml" }
 
 [profile.release]
 opt-level = 2
