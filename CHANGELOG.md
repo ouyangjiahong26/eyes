@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.3] — 2026-07-05
+
+### 修复
+
+- **`.deb` / `.rpm` 安装后检测不到人脸**：`src/monitoring/vision/onnx_detector.rs::resolve_model_path` 的候选路径只覆盖 `<exe_dir>/models/`（MSI 布局）和 `<exe_dir>/../../models/`（cargo run 开发态），不覆盖 Linux 包实际布局 `/usr/lib/<pkg_name>/models/`。补该候选路径，路径用 `env!("CARGO_PKG_NAME")` 编译期拼装，避免硬编码。验证 feedback loop 复现并转绿。
+
 ## [0.4.2] — 2026-07-05
 
 ### 修复

@@ -223,7 +223,10 @@ pub fn load_onnx_detector() -> Option<Box<dyn crate::monitoring::detector::Detec
 /// 按以下顺序尝试：
 /// 1. `<exe_dir>/models/face_detection_yunet_2023mar.onnx`（MSI 安装态）
 /// 2. `<exe_dir>/../../models/face_detection_yunet_2023mar.onnx`（cargo run 开发态）
-/// 3. `<cwd>/models/face_detection_yunet_2023mar.onnx`（任意工作目录兜底）
+/// 3. `/usr/lib/<pkg_name>/models/face_detection_yunet_2023mar.onnx`
+///    （cargo-bundle 的 `resources` 字段把 models/ 复制到 `/usr/lib/<name>/`，
+///    与 exe_dir 不同）
+/// 4. `<cwd>/models/face_detection_yunet_2023mar.onnx`（任意工作目录兜底）
 #[cfg(all(feature = "opencv-camera", feature = "onnx-detector"))]
 fn resolve_model_path() -> Option<std::path::PathBuf> {
     use crate::app_shell::platform::install_dir;
@@ -237,6 +240,16 @@ fn resolve_model_path() -> Option<std::path::PathBuf> {
             candidates.push(dev_path);
         }
     }
+
+    // Linux .deb / .rpm 安装态：cargo-bundle 把 `resources = ["models"]`
+    // 复制到 `/usr/lib/<CARGO_PKG_NAME>/models/`。MSI 不走此路径（模型在 exe_dir）。
+    #[cfg(target_os = "linux")]
+    candidates.push(
+        std::path::PathBuf::from("/usr/lib")
+            .join(env!("CARGO_PKG_NAME"))
+            .join("models")
+            .join(MODEL_NAME),
+    );
 
     if let Ok(cwd) = std::env::current_dir() {
         candidates.push(cwd.join("models").join(MODEL_NAME));
