@@ -5,6 +5,9 @@ edition = "2021"
 default-run = "eyes"
 description = "桌面坐姿监测与护眼提醒工具"
 authors = ["cislunarspace <cislunarspace@users.noreply.github.com>"]
+# cargo-rpm 反序列化要求此字段（仓库里无 LICENSE 文件，但 cargo-rpm
+# 不要求 LICENSE 实际存在，仅要求字段声明）。
+license = "MIT"
 
 # cargo-wix 配置。`cargo wix` 读取此节生成 MSI。
 # 完整字段见 https://volans-.github.io/cargo-wix/

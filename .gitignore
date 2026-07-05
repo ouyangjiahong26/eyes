@@ -2,6 +2,9 @@
 target/
 Cargo.lock
 
+# cargo-rpm 临时目录（打包时由 scripts/prepare-release-libs.sh / 手动 cp models/ 在打包前填充）
+.rpm/
+
 # ONNX models (obtained separately, bundled at build time)
 models/*
 !models/MANIFEST.toml
