@@ -28,6 +28,7 @@ pub struct AppConfig {
     pub snooze_until_iso: Option<String>,
     pub off_axis_streak_threshold_seconds: f64,
     pub off_axis_repeat_interval_seconds: f64,
+    pub off_axis_severe_threshold_seconds: f64,
     pub facing_threshold_seconds: f64,
     pub eyest_threshold_seconds: f64,
 }
@@ -49,6 +50,7 @@ impl Default for AppConfig {
             snooze_until_iso: None,
             off_axis_streak_threshold_seconds: defaults::OFF_AXIS_STREAK_THRESHOLD,
             off_axis_repeat_interval_seconds: defaults::OFF_AXIS_REPEAT_INTERVAL,
+            off_axis_severe_threshold_seconds: defaults::OFF_AXIS_SEVERE_THRESHOLD,
             facing_threshold_seconds: defaults::FACING_THRESHOLD,
             eyest_threshold_seconds: defaults::EYEREST_THRESHOLD,
         }

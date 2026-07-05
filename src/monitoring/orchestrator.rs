@@ -19,6 +19,7 @@ pub trait Monitor: Send + 'static {
         &mut self,
         off_axis_streak_threshold: f64,
         off_axis_repeat_interval: f64,
+        off_axis_severe_threshold: f64,
         facing_threshold: f64,
         eyest_threshold: f64,
     );
@@ -31,12 +32,14 @@ impl<C: FrameSource + Send + 'static> Monitor for MonitoringWorker<C> {
         &mut self,
         off_axis_streak_threshold: f64,
         off_axis_repeat_interval: f64,
+        off_axis_severe_threshold: f64,
         facing_threshold: f64,
         eyest_threshold: f64,
     ) {
         self.engine_mut().update_timing(
             off_axis_streak_threshold,
             off_axis_repeat_interval,
+            off_axis_severe_threshold,
             facing_threshold,
             eyest_threshold,
         );
@@ -123,6 +126,7 @@ impl WorkerOrchestrator {
                             m.update_timing(
                                 new_config.off_axis_streak_threshold_seconds,
                                 new_config.off_axis_repeat_interval_seconds,
+                                new_config.off_axis_severe_threshold_seconds,
                                 new_config.facing_threshold_seconds,
                                 new_config.eyest_threshold_seconds,
                             );
@@ -402,6 +406,7 @@ mod tests {
             &mut self,
             _off_axis_streak_threshold: f64,
             _off_axis_repeat_interval: f64,
+            _off_axis_severe_threshold: f64,
             _facing_threshold: f64,
             _eyest_threshold: f64,
         ) {}

@@ -25,6 +25,9 @@ pub const OFF_AXIS_STREAK_THRESHOLD: f64 = 0.3;
 /// 偏离重复提醒间隔（秒）。
 pub const OFF_AXIS_REPEAT_INTERVAL: f64 = 10.0;
 
+/// 偏离严重升级时长阈值（秒）。
+pub const OFF_AXIS_SEVERE_THRESHOLD: f64 = 10.0;
+
 /// 正面朝向累积时长阈值（秒）。
 pub const FACING_THRESHOLD: f64 = 300.0;
 

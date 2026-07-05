@@ -111,6 +111,7 @@ fn default_engine() -> PostureTickEngine {
     PostureTickEngine::new(
         Some(0.3),  // streak threshold
         Some(2.0),  // repeat interval
+        Some(2.0),  // severe threshold（ADR 0009：原 repeat=2.0 等同 severe 旧语义）
         Some(5.0),  // facing threshold
         Some(10.0), // eyest threshold
     )

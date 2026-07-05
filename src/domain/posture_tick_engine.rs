@@ -22,8 +22,6 @@ pub enum SenseEvent {
     },
 }
 
-// 默认值已统一到 domain::defaults
-
 fn direction_label(state: PoseState) -> &'static str {
     match state {
         PoseState::OffAxisLeft => "left",
@@ -40,28 +38,47 @@ enum Axis {
     Pitch,
 }
 
-/// 单轴 off-axis 跟踪状态：streak 计时、重复提醒、警告升级 FSM。
+/// 单轴 off-axis 状态机。
+///
+/// 单一时间轴 `continuous_seconds` 同时驱动 WarningLevel 升级与 Correction
+/// 触发节奏，二者从同一时刻序列派生（issue #32、ADR 0009）。
+///
+/// ## 字段
+///
+/// - `axis`：本轴身份（Yaw / Pitch），用于过滤另一轴状态。
+/// - `warning_level`：Normal / Warning / Severe / Corrected FSM 当前所处状态。
+/// - `continuous_seconds`：自进入本轴 off-axis 起累计的时长（秒）。进入 off-axis
+///   那一刻从 0 开始；切回 `FacingScreen` 或 `NoFace` 时被重置为 0。
+/// - `corrected_remaining_seconds`：Corrected 缓冲剩余时长（硬编码 2.0s，不参数化）。
+/// - `next_correction_threshold`：下一次 Correction 触发的 `continuous_seconds`
+///   阈值；离开 off-axis 时清为 `None`，进入 off-axis 后在首次 Correction
+///   触发时被初始化为 `Some(continuous_seconds + repeat_interval)`。
+///
+/// ## 不对称重置语义（有意为之）
+///
+/// `NoFace` 与 `FacingScreen` 的重置语义**不对称**，是产品决策（ADR 0009 决策 9）：
+///
+/// - `NoFace` 直接走 `reset_warning()` 清零 WarningLevel 与 `continuous_seconds`，
+///   **不**走 Corrected 流程。因为人已经离开屏幕，再发"已纠正"的提示没有对象。
+/// - `FacingScreen` 走 Warning/Severe → Corrected 缓冲 2s → Normal；进入 Corrected
+///   时把 `continuous_seconds` 清零。给主动纠正一个正向反馈缓冲。
 #[derive(Debug, Clone)]
 struct OffAxisState {
     axis: Axis,
-    streak: f64,
-    repeat_due_at: Option<f64>,
-    last_emit_at: Option<f64>,
     warning_level: WarningLevel,
     continuous_seconds: f64,
     corrected_remaining_seconds: f64,
+    next_correction_threshold: Option<f64>,
 }
 
 impl OffAxisState {
     fn new(axis: Axis) -> Self {
         Self {
             axis,
-            streak: 0.0,
-            repeat_due_at: None,
-            last_emit_at: None,
             warning_level: WarningLevel::Normal,
             continuous_seconds: 0.0,
             corrected_remaining_seconds: 0.0,
+            next_correction_threshold: None,
         }
     }
 
@@ -73,124 +90,18 @@ impl OffAxisState {
         Self::new(Axis::Pitch)
     }
 
-    fn reset_streak(&mut self) {
-        self.streak = 0.0;
-        self.repeat_due_at = None;
-        self.last_emit_at = None;
-    }
-
+    /// 清空 WarningLevel FSM 与连续时长累加，但**不**触碰
+    /// `next_correction_threshold`——后者由调用方根据上下文（离开 off-axis 时）
+    /// 显式清空，避免在 Normal 状态保持 None 的语义被误改写。
     fn reset_warning(&mut self) {
         self.warning_level = WarningLevel::Normal;
         self.continuous_seconds = 0.0;
         self.corrected_remaining_seconds = 0.0;
     }
 
-    /// 偏离连续时长追踪。
-    fn update_streak(
-        &mut self,
-        state: PoseState,
-        dt: f64,
-        streak_threshold: f64,
-        repeat_interval: f64,
-        events: &mut Vec<SenseEvent>,
-    ) {
-        if self.is_off_for_self(state) {
-            self.streak += dt;
-            if self.streak >= streak_threshold {
-                if self.last_emit_at.is_none() {
-                    self.last_emit_at = Some(self.streak);
-                    self.repeat_due_at = Some(self.streak + repeat_interval);
-                    events.push(SenseEvent::Correction { direction: state });
-                } else if self
-                    .repeat_due_at
-                    .is_some_and(|due_at| self.streak >= due_at)
-                {
-                    self.repeat_due_at = Some(self.streak + repeat_interval);
-                    events.push(SenseEvent::Correction { direction: state });
-                }
-            }
-        } else {
-            self.reset_streak();
-        }
-    }
-
-    /// Warning 级别 FSM：Normal → Warning → Severe → Corrected → Normal。
-    fn update_warning_level(
-        &mut self,
-        state: PoseState,
-        dt: f64,
-        repeat_interval: f64,
-        events: &mut Vec<SenseEvent>,
-    ) {
-        let direction = direction_label(state);
-        match state {
-            _ if self.is_off_for_self(state) => {
-                if matches!(
-                    self.warning_level,
-                    WarningLevel::Normal | WarningLevel::Corrected
-                ) {
-                    self.warning_level = WarningLevel::Warning;
-                    self.continuous_seconds = dt;
-                    events.push(SenseEvent::WarningLevelChanged {
-                        level: WarningLevel::Warning,
-                        direction: Some(direction.to_string()),
-                    });
-                } else {
-                    self.continuous_seconds += dt;
-                    if self.warning_level == WarningLevel::Warning
-                        && self.continuous_seconds >= repeat_interval
-                    {
-                        self.warning_level = WarningLevel::Severe;
-                        events.push(SenseEvent::WarningLevelChanged {
-                            level: WarningLevel::Severe,
-                            direction: Some(direction.to_string()),
-                        });
-                    }
-                }
-            }
-            PoseState::FacingScreen => {
-                if matches!(
-                    self.warning_level,
-                    WarningLevel::Warning | WarningLevel::Severe
-                ) {
-                    self.warning_level = WarningLevel::Corrected;
-                    self.corrected_remaining_seconds = 2.0;
-                    self.continuous_seconds = 0.0;
-                    events.push(SenseEvent::WarningLevelChanged {
-                        level: WarningLevel::Corrected,
-                        direction: None,
-                    });
-                } else if self.warning_level == WarningLevel::Corrected {
-                    self.corrected_remaining_seconds -= dt;
-                    if self.corrected_remaining_seconds <= 0.0 {
-                        self.warning_level = WarningLevel::Normal;
-                        self.corrected_remaining_seconds = 0.0;
-                        events.push(SenseEvent::WarningLevelChanged {
-                            level: WarningLevel::Normal,
-                            direction: None,
-                        });
-                    }
-                }
-            }
-            PoseState::NoFace => {
-                if matches!(
-                    self.warning_level,
-                    WarningLevel::Warning | WarningLevel::Severe | WarningLevel::Corrected
-                ) {
-                    self.reset_warning();
-                    events.push(SenseEvent::WarningLevelChanged {
-                        level: WarningLevel::Normal,
-                        direction: None,
-                    });
-                }
-            }
-            _ => {}
-        }
-    }
-
     /// 判断状态是否属于本轴的 off-axis。
     /// yaw 只关心 OffAxisLeft/OffAxisRight，pitch 只关心 HeadUp/HeadDown，
-    /// 避免把另一轴的偏离状态计入本轴的 streak 或警告升级。
+    /// 避免把另一轴的偏离状态计入本轴的 `continuous_seconds` 或警告升级。
     fn is_off_for_self(&self, state: PoseState) -> bool {
         match self.axis {
             Axis::Yaw => matches!(state, PoseState::OffAxisLeft | PoseState::OffAxisRight),
@@ -203,12 +114,22 @@ impl OffAxisState {
         self.is_off_for_self(state) || matches!(state, PoseState::FacingScreen | PoseState::NoFace)
     }
 
-    /// 处理单轴完整 tick：streak + warning。
+    /// 单轴完整 tick：所有 off-axis 派生事件从 `continuous_seconds` 单一时间轴派生。
+    ///
+    /// 触发条件（ADR 0009 决策 3-6）：
+    ///
+    /// - Normal/Corrected → Warning：`is_off_for_self(state) && continuous_seconds >= streak_threshold`
+    /// - Warning → Severe：`continuous_seconds >= severe_threshold`
+    /// - Correction：依次越过 `streak_threshold`、`repeat_interval`、`2*repeat_interval`...
+    ///   首次与 Warning 升级同步；第二次与 Severe 升级同步（即下一次 Correction
+    ///   在 `continuous_seconds >= next_correction_threshold` 时触发）。
+    /// - Corrected → Normal：硬编码 2.0s 缓冲。
     fn tick(
         &mut self,
         state: PoseState,
         dt: f64,
         streak_threshold: f64,
+        severe_threshold: f64,
         repeat_interval: f64,
     ) -> Vec<SenseEvent> {
         let mut events = Vec::new();
@@ -216,8 +137,96 @@ impl OffAxisState {
         if !self.is_applicable(state) {
             return events;
         }
-        self.update_streak(state, dt, streak_threshold, repeat_interval, &mut events);
-        self.update_warning_level(state, dt, repeat_interval, &mut events);
+
+        let direction = direction_label(state);
+
+        if self.is_off_for_self(state) {
+            self.continuous_seconds += dt;
+
+            match self.warning_level {
+                WarningLevel::Normal | WarningLevel::Corrected => {
+                    // Normal/Corrected → Warning；首次 Correction 同步发出
+                    if self.continuous_seconds >= streak_threshold {
+                        self.warning_level = WarningLevel::Warning;
+                        events.push(SenseEvent::WarningLevelChanged {
+                            level: WarningLevel::Warning,
+                            direction: Some(direction.to_string()),
+                        });
+                        events.push(SenseEvent::Correction { direction: state });
+                        self.next_correction_threshold =
+                            Some(self.continuous_seconds + repeat_interval);
+                    }
+                }
+                WarningLevel::Warning => {
+                    // Warning → Severe
+                    if self.continuous_seconds >= severe_threshold {
+                        self.warning_level = WarningLevel::Severe;
+                        events.push(SenseEvent::WarningLevelChanged {
+                            level: WarningLevel::Severe,
+                            direction: Some(direction.to_string()),
+                        });
+                    }
+                    // Correction：可能与 Severe 升级同帧触发（第二次 Correction）
+                    if let Some(due) = self.next_correction_threshold {
+                        if self.continuous_seconds >= due {
+                            events.push(SenseEvent::Correction { direction: state });
+                            self.next_correction_threshold =
+                                Some(self.continuous_seconds + repeat_interval);
+                        }
+                    }
+                }
+                WarningLevel::Severe => {
+                    // Severe 状态下的后续 Correction
+                    if let Some(due) = self.next_correction_threshold {
+                        if self.continuous_seconds >= due {
+                            events.push(SenseEvent::Correction { direction: state });
+                            self.next_correction_threshold =
+                                Some(self.continuous_seconds + repeat_interval);
+                        }
+                    }
+                }
+            }
+        } else if state == PoseState::FacingScreen {
+            match self.warning_level {
+                // Warning/Severe → Corrected：进入 Corrected 时清零 continuous_seconds
+                // 并清空 next_correction_threshold（离开 off-axis）。
+                WarningLevel::Warning | WarningLevel::Severe => {
+                    self.warning_level = WarningLevel::Corrected;
+                    self.corrected_remaining_seconds = 2.0;
+                    self.continuous_seconds = 0.0;
+                    self.next_correction_threshold = None;
+                    events.push(SenseEvent::WarningLevelChanged {
+                        level: WarningLevel::Corrected,
+                        direction: None,
+                    });
+                }
+                // Corrected → Normal：硬编码 2.0s 缓冲（不参数化）
+                WarningLevel::Corrected => {
+                    self.corrected_remaining_seconds -= dt;
+                    if self.corrected_remaining_seconds <= 0.0 {
+                        self.warning_level = WarningLevel::Normal;
+                        self.corrected_remaining_seconds = 0.0;
+                        events.push(SenseEvent::WarningLevelChanged {
+                            level: WarningLevel::Normal,
+                            direction: None,
+                        });
+                    }
+                }
+                WarningLevel::Normal => {}
+            }
+        } else if state == PoseState::NoFace {
+            // NoFace：直接走 reset_warning，不走 Corrected 流程。
+            // 故意与 FacingScreen 的重置语义不对称（ADR 0009 决策 9）。
+            if self.warning_level != WarningLevel::Normal {
+                self.reset_warning();
+                self.next_correction_threshold = None;
+                events.push(SenseEvent::WarningLevelChanged {
+                    level: WarningLevel::Normal,
+                    direction: None,
+                });
+            }
+        }
+
         events
     }
 }
@@ -226,6 +235,7 @@ impl OffAxisState {
 pub struct PostureTickEngine {
     off_axis_streak_threshold: f64,
     off_axis_repeat_interval: f64,
+    off_axis_severe_threshold: f64,
     facing_threshold: f64,
     eyest_threshold: f64,
     facing_seconds: f64,
@@ -237,7 +247,7 @@ pub struct PostureTickEngine {
 
 impl Default for PostureTickEngine {
     fn default() -> Self {
-        Self::new(None, None, None, None)
+        Self::new(None, None, None, None, None)
     }
 }
 
@@ -245,6 +255,7 @@ impl PostureTickEngine {
     pub fn new(
         off_axis_streak_threshold_seconds: Option<f64>,
         off_axis_repeat_interval_seconds: Option<f64>,
+        off_axis_severe_threshold_seconds: Option<f64>,
         facing_threshold_seconds: Option<f64>,
         eyest_threshold_seconds: Option<f64>,
     ) -> Self {
@@ -253,6 +264,8 @@ impl PostureTickEngine {
                 .unwrap_or(defaults::OFF_AXIS_STREAK_THRESHOLD),
             off_axis_repeat_interval: off_axis_repeat_interval_seconds
                 .unwrap_or(defaults::OFF_AXIS_REPEAT_INTERVAL),
+            off_axis_severe_threshold: off_axis_severe_threshold_seconds
+                .unwrap_or(defaults::OFF_AXIS_SEVERE_THRESHOLD),
             facing_threshold: facing_threshold_seconds.unwrap_or(defaults::FACING_THRESHOLD),
             eyest_threshold: eyest_threshold_seconds.unwrap_or(defaults::EYEREST_THRESHOLD),
             facing_seconds: 0.0,
@@ -280,11 +293,13 @@ impl PostureTickEngine {
         &mut self,
         off_axis_streak_threshold: f64,
         off_axis_repeat_interval: f64,
+        off_axis_severe_threshold: f64,
         facing_threshold: f64,
         eyest_threshold: f64,
     ) {
         self.off_axis_streak_threshold = off_axis_streak_threshold;
         self.off_axis_repeat_interval = off_axis_repeat_interval;
+        self.off_axis_severe_threshold = off_axis_severe_threshold;
         self.facing_threshold = facing_threshold;
         self.eyest_threshold = eyest_threshold;
     }
@@ -316,17 +331,19 @@ impl PostureTickEngine {
             return events;
         }
 
-        // 各轴独立处理 off-axis streak + 警告升级
+        // 各轴独立处理 off-axis 警告升级与 Correction
         events.extend(self.yaw_oa.tick(
             yaw_state,
             dt,
             self.off_axis_streak_threshold,
+            self.off_axis_severe_threshold,
             self.off_axis_repeat_interval,
         ));
         events.extend(self.pitch_oa.tick(
             pitch_state,
             dt,
             self.off_axis_streak_threshold,
+            self.off_axis_severe_threshold,
             self.off_axis_repeat_interval,
         ));
 
@@ -361,7 +378,13 @@ mod tests {
 
     #[test]
     fn update_timing_preserves_accumulated_state() {
-        let mut engine = PostureTickEngine::new(Some(0.3), Some(10.0), Some(300.0), Some(900.0));
+        let mut engine = PostureTickEngine::new(
+            Some(0.3),
+            Some(10.0),
+            Some(15.0),
+            Some(300.0),
+            Some(900.0),
+        );
 
         // 累积一些 facing_seconds
         for _ in 0..10 {
@@ -381,7 +404,7 @@ mod tests {
         let prev_presence = engine.presence_seconds;
 
         // 更新阈值
-        engine.update_timing(1.0, 30.0, 600.0, 1800.0);
+        engine.update_timing(1.0, 30.0, 20.0, 600.0, 1800.0);
 
         // 累加状态不变
         assert_eq!(engine.facing_seconds, prev_facing);
@@ -390,13 +413,15 @@ mod tests {
         // 新阈值已生效（通过后续 tick 行为验证）
         assert_eq!(engine.off_axis_streak_threshold, 1.0);
         assert_eq!(engine.off_axis_repeat_interval, 30.0);
+        assert_eq!(engine.off_axis_severe_threshold, 20.0);
         assert_eq!(engine.facing_threshold, 600.0);
         assert_eq!(engine.eyest_threshold, 1800.0);
     }
 
     #[test]
     fn update_timing_does_not_reset_warning_state() {
-        let mut engine = PostureTickEngine::new(Some(0.1), Some(10.0), Some(300.0), Some(900.0));
+        let mut engine =
+            PostureTickEngine::new(Some(0.1), Some(10.0), Some(5.0), Some(300.0), Some(900.0));
 
         // 触发 Warning 状态
         for _ in 0..5 {
@@ -405,7 +430,7 @@ mod tests {
         assert_eq!(engine.warning_level(), WarningLevel::Warning);
 
         // 更新阈值
-        engine.update_timing(0.5, 5.0, 100.0, 500.0);
+        engine.update_timing(0.5, 5.0, 20.0, 100.0, 500.0);
 
         // 警告状态不变
         assert_eq!(engine.warning_level(), WarningLevel::Warning);
@@ -417,14 +442,15 @@ mod tests {
         let mut yaw = OffAxisState::new_yaw();
         let dt = 0.1;
         let threshold = 0.3;
+        let severe = 10.0;
         let repeat = 10.0;
 
         for _ in 0..100 {
-            let events = yaw.tick(PoseState::HeadUp, dt, threshold, repeat);
+            let events = yaw.tick(PoseState::HeadUp, dt, threshold, severe, repeat);
             assert!(events.is_empty(), "yaw tracker should not emit events for HeadUp");
         }
 
-        assert_eq!(yaw.streak, 0.0);
+        assert_eq!(yaw.continuous_seconds, 0.0);
         assert_eq!(yaw.warning_level, WarningLevel::Normal);
     }
 
@@ -434,17 +460,18 @@ mod tests {
         let mut pitch = OffAxisState::new_pitch();
         let dt = 0.1;
         let threshold = 0.3;
+        let severe = 10.0;
         let repeat = 10.0;
 
         for _ in 0..100 {
-            let events = pitch.tick(PoseState::OffAxisRight, dt, threshold, repeat);
+            let events = pitch.tick(PoseState::OffAxisRight, dt, threshold, severe, repeat);
             assert!(
                 events.is_empty(),
                 "pitch tracker should not emit events for OffAxisRight"
             );
         }
 
-        assert_eq!(pitch.streak, 0.0);
+        assert_eq!(pitch.continuous_seconds, 0.0);
         assert_eq!(pitch.warning_level, WarningLevel::Normal);
     }
 
@@ -452,7 +479,7 @@ mod tests {
     fn yaw_tracker_responds_to_yaw_states() {
         // 轴专属过滤后，yaw 仍应正常响应本轴偏离。
         let mut yaw = OffAxisState::new_yaw();
-        let events = yaw.tick(PoseState::OffAxisRight, 0.5, 0.3, 10.0);
+        let events = yaw.tick(PoseState::OffAxisRight, 0.5, 0.3, 10.0, 10.0);
         assert!(!events.is_empty(), "yaw tracker should emit Correction for OffAxisRight");
         assert_eq!(yaw.warning_level, WarningLevel::Warning);
     }
@@ -461,7 +488,7 @@ mod tests {
     fn pitch_tracker_responds_to_pitch_states() {
         // 轴专属过滤后，pitch 仍应正常响应本轴偏离。
         let mut pitch = OffAxisState::new_pitch();
-        let events = pitch.tick(PoseState::HeadUp, 0.5, 0.3, 10.0);
+        let events = pitch.tick(PoseState::HeadUp, 0.5, 0.3, 10.0, 10.0);
         assert!(!events.is_empty(), "pitch tracker should emit Correction for HeadUp");
         assert_eq!(pitch.warning_level, WarningLevel::Warning);
     }
