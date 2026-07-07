@@ -16,13 +16,7 @@ pub enum WorkerCommand {
 
 /// 线程安全的命令发送端，Bevy 系统通过它向 worker 发指令。
 #[derive(Clone)]
-pub struct WorkerSender(std::sync::mpsc::Sender<WorkerCommand>);
-
-impl WorkerSender {
-    pub fn send(&self, cmd: WorkerCommand) -> Result<(), String> {
-        self.0.send(cmd).map_err(|_| "worker 已停止".to_string())
-    }
-}
+pub struct WorkerSender(pub std::sync::mpsc::Sender<WorkerCommand>);
 
 pub type WorkerReceiver = std::sync::mpsc::Receiver<WorkerCommand>;
 

@@ -6,7 +6,7 @@
 //! 3. Warning 级别流转
 //! 4. Pitch 轴 Correction
 //!
-//! VS1 追加：通过 BevyEventSink + mpsc 验证 MonitoringEvent 流端到端可达。
+//! 端到端验证：通过 mpsc channel 验证 MonitoringEvent 流可达。
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc};
@@ -15,12 +15,11 @@ use eyes_lib::domain::classifier::{HeadPose, PoseState};
 use eyes_lib::domain::config::{ConfigState, ConfigStore};
 use eyes_lib::domain::posture_tick_engine::{PostureTickEngine, SenseEvent, WarningLevel};
 use eyes_lib::domain::thresholds::TimingThresholds;
-use eyes_lib::monitoring::detector::Detector;
-use eyes_lib::monitoring::event_mapping;
-use eyes_lib::monitoring::event_sink::BevyEventSink;
-use eyes_lib::monitoring::events::{EventSink, MonitoringEvent};
+use eyes_lib::monitoring::events::MonitoringEvent;
+use eyes_lib::monitoring::events::event_mapping;
+use eyes_lib::monitoring::pipeline::detector::Detector;
+use eyes_lib::monitoring::pipeline::worker::{FrameSource, MonitoringWorker, WorkerOutput};
 use eyes_lib::monitoring::preview::Frame;
-use eyes_lib::monitoring::worker::{FrameSource, MonitoringWorker, WorkerOutput};
 
 // ── Fake 实现 ──────────────────────────────────────────────────
 
@@ -114,7 +113,7 @@ fn default_engine() -> PostureTickEngine {
         off_axis_repeat_interval_seconds: 2.0,
         off_axis_severe_threshold_seconds: 2.0, // ADR 0009：原 repeat=2.0 等同 severe 旧语义
         facing_threshold_seconds: 5.0,
-        eyest_threshold_seconds: 10.0,
+        eyerest_threshold_seconds: 10.0,
     })
 }
 
@@ -210,7 +209,7 @@ fn facing_screen_fires_good_posture() {
 #[test]
 fn face_present_fires_eye_rest() {
     let mut w = make_worker(0.0, 0.0);
-    // eyest_threshold=10.0s，dt=0.1，多 tick 几帧
+    // eyerest_threshold=10.0s，dt=0.1，多 tick 几帧
     let outputs = tick_n(&mut w, 105, 0.1);
     let events = collect_events(&outputs);
     assert!(has_eye_rest(&events), "有脸 ~10s 应触发 EyeRest");
@@ -314,19 +313,18 @@ fn yaw_and_pitch_both_trigger_independent_corrections() {
     );
 }
 
-// ── Track 5：BevyEventSink 端到端事件流 ─────────────────────────
+// ── Track 5：事件流端到端（event_mapping → mpsc channel） ──────
 
-/// 把一次 tick 的 WorkerOutput 走完 event_mapping → BevyEventSink → mpsc，
+/// 把一次 tick 的 WorkerOutput 走完 event_mapping → mpsc channel，
 /// 验产出的 MonitoringEvent 流和直接调 from_worker_output 一致。
 #[test]
-fn bevy_event_sink_receives_monitoring_events() {
+fn event_channel_receives_monitoring_events() {
     let (tx, rx) = mpsc::channel::<MonitoringEvent>();
-    let sink = BevyEventSink::new(tx);
 
     let mut w = make_worker(0.0, 0.0);
     let out = w.tick(0.1);
     for event in event_mapping::from_worker_output(&out) {
-        sink.emit(event);
+        let _ = tx.send(event);
     }
 
     let events: Vec<_> = rx.try_iter().collect();
@@ -339,18 +337,17 @@ fn bevy_event_sink_receives_monitoring_events() {
     );
 }
 
-/// 验证偏离 → Correction 时，WarningLevelChanged 和 SoundAlert 也能通过 sink 到达。
+/// 验证偏离 → Correction 时，WarningLevelChanged 和 SoundAlert 也能通过 channel 到达。
 #[test]
-fn bevy_event_sink_receives_correction_events() {
+fn event_channel_receives_correction_events() {
     let (tx, rx) = mpsc::channel::<MonitoringEvent>();
-    let sink = BevyEventSink::new(tx);
 
     let mut w = make_worker(6.0, 0.0);
     // tick 到第一次 correction 触发（>0.3s）
     for _ in 0..5 {
         let out = w.tick(0.1);
         for event in event_mapping::from_worker_output(&out) {
-            sink.emit(event);
+            let _ = tx.send(event);
         }
     }
 
@@ -365,17 +362,16 @@ fn bevy_event_sink_receives_correction_events() {
     assert!(
         events.iter().any(|e| matches!(
             e,
-            MonitoringEvent::SoundAlert { ref alert_type } if alert_type == "posture"
+            MonitoringEvent::SoundAlert { ref alert_type } if alert_type == "off_axis"
         )),
-        "应有 SoundAlert(posture), events={events:?}"
+        "应有 SoundAlert(off_axis), events={events:?}"
     );
 }
 
-/// 验证摄像头故障时 CameraStateChanged 事件能通过 sink 到达。
+/// 验证摄像头故障时 CameraStateChanged 事件能通过 channel 到达。
 #[test]
-fn bevy_event_sink_receives_camera_unavailable() {
+fn event_channel_receives_camera_unavailable() {
     let (tx, rx) = mpsc::channel::<MonitoringEvent>();
-    let sink = BevyEventSink::new(tx);
 
     // 构造一个 camera_ok=false 的输出（无帧时 worker 返回此结果）
     let output = WorkerOutput {
@@ -390,7 +386,7 @@ fn bevy_event_sink_receives_camera_unavailable() {
     };
 
     for event in event_mapping::from_worker_output(&output) {
-        sink.emit(event);
+        let _ = tx.send(event);
     }
 
     let events: Vec<_> = rx.try_iter().collect();
@@ -403,15 +399,14 @@ fn bevy_event_sink_receives_camera_unavailable() {
     );
 }
 
-/// 验证 sink 的发送端断开后 emit 不 panic。
+/// 验证接收端断开后 send 不 panic（发送静默失败）。
 #[test]
-fn bevy_event_sink_does_not_panic_on_dropped_receiver() {
+fn event_send_does_not_panic_on_dropped_receiver() {
     let (tx, rx) = mpsc::channel::<MonitoringEvent>();
-    let sink = BevyEventSink::new(tx);
     drop(rx);
 
     // 接收端已掉，发送应静默失败
-    sink.emit(MonitoringEvent::PoseUpdated {
+    let _ = tx.send(MonitoringEvent::PoseUpdated {
         yaw: Some(0.0),
         pitch: Some(0.0),
         pose_state: "facing_screen".into(),

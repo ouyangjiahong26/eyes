@@ -1,9 +1,9 @@
 use eyes_lib::domain::classifier::HeadPose;
 use eyes_lib::domain::config::{ConfigState, ConfigStore};
 use eyes_lib::monitoring::{
-    detector::Detector,
+    pipeline::detector::Detector,
+    pipeline::worker::{FrameSource, MonitoringWorker},
     preview::Frame,
-    worker::{FrameSource, MonitoringWorker},
 };
 use std::sync::{Arc, Mutex};
 
