@@ -25,7 +25,6 @@ pub struct AppConfig {
     pub language: String,
     pub sound_enabled: bool,
     pub autostart_enabled: bool,
-    pub snooze_until_iso: Option<String>,
     // issue #141：5 个时机阈值收进 TimingThresholds，经 serde(flatten) 平铺到
     // YAML，旧配置文件（字段平铺）仍可反序列化。
     #[serde(flatten)]
@@ -34,18 +33,18 @@ pub struct AppConfig {
 
 impl Default for AppConfig {
     fn default() -> Self {
+        use super::defaults;
         Self {
-            yaw_threshold: 5.0,
-            pitch_threshold: 10.0,
-            yaw_hysteresis: 2.5,
-            pitch_hysteresis: 5.0,
+            yaw_threshold: defaults::YAW_DEG,
+            pitch_threshold: defaults::PITCH_DEG,
+            yaw_hysteresis: defaults::YAW_HYSTERESIS_DEG,
+            pitch_hysteresis: defaults::PITCH_HYSTERESIS_DEG,
             neutral_yaw: 0.0,
             neutral_pitch: 0.0,
             camera_index: 0,
             language: "zh-CN".to_string(),
             sound_enabled: true,
             autostart_enabled: false,
-            snooze_until_iso: None,
             timing: super::thresholds::TimingThresholds::default(),
         }
     }
@@ -244,7 +243,7 @@ neutral_pitch: -1.5
         let config = AppConfig {
             timing: crate::domain::thresholds::TimingThresholds {
                 facing_threshold_seconds: 600.0,
-                eyest_threshold_seconds: 1800.0,
+                eyerest_threshold_seconds: 1800.0,
                 ..Default::default()
             },
             ..AppConfig::default()
@@ -252,7 +251,7 @@ neutral_pitch: -1.5
         let yaml = serde_yaml::to_string(&config).unwrap();
         let parsed: AppConfig = serde_yaml::from_str(&yaml).unwrap();
         assert_eq!(parsed.timing.facing_threshold_seconds, 600.0);
-        assert_eq!(parsed.timing.eyest_threshold_seconds, 1800.0);
+        assert_eq!(parsed.timing.eyerest_threshold_seconds, 1800.0);
     }
 
     #[test]

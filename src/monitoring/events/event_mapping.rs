@@ -7,7 +7,7 @@ use crate::domain::classifier::PoseState;
 use crate::domain::event_log::AppEventKind;
 use crate::domain::posture_tick_engine::{SenseEvent, WarningLevel};
 use crate::monitoring::events::MonitoringEvent;
-use crate::monitoring::worker::WorkerOutput;
+use crate::monitoring::pipeline::worker::WorkerOutput;
 
 /// 将单次 tick 的输出转为一组监控事件。
 pub fn from_worker_output(output: &WorkerOutput) -> Vec<MonitoringEvent> {
@@ -94,7 +94,7 @@ pub fn from_sense_event(event: &SenseEvent) -> Vec<MonitoringEvent> {
                     direction: Some(dir.into()),
                 },
                 MonitoringEvent::SoundAlert {
-                    alert_type: "posture".into(),
+                    alert_type: "off_axis".into(),
                 },
                 MonitoringEvent::LogEvent {
                     kind: AppEventKind::PromptFired,
@@ -153,7 +153,7 @@ pub fn from_sense_event(event: &SenseEvent) -> Vec<MonitoringEvent> {
 mod tests {
     use super::*;
     use crate::domain::posture_tick_engine::WarningLevel;
-    use crate::monitoring::worker::WorkerOutput;
+    use crate::monitoring::pipeline::worker::WorkerOutput;
 
     fn good_output() -> WorkerOutput {
         WorkerOutput {
@@ -220,7 +220,7 @@ mod tests {
         )));
         assert!(events.iter().any(|e| matches!(
             e,
-            MonitoringEvent::SoundAlert { ref alert_type } if alert_type == "posture"
+            MonitoringEvent::SoundAlert { ref alert_type } if alert_type == "off_axis"
         )));
         assert!(events.iter().any(|e| matches!(
             e,

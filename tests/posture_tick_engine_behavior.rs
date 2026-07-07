@@ -96,7 +96,7 @@ fn facing_and_presence_accumulators_fire_and_reset_at_thresholds() {
     let mut engine = PostureTickEngine::new(TimingThresholds {
         off_axis_streak_threshold_seconds: 5.0,
         facing_threshold_seconds: 2.0,
-        eyest_threshold_seconds: 3.0,
+        eyerest_threshold_seconds: 3.0,
         ..Default::default()
     });
 
@@ -116,7 +116,7 @@ fn non_facing_and_no_face_pause_accumulators_without_resetting() {
     let mut engine = PostureTickEngine::new(TimingThresholds {
         off_axis_streak_threshold_seconds: 5.0,
         facing_threshold_seconds: 10.0,
-        eyest_threshold_seconds: 10.0,
+        eyerest_threshold_seconds: 10.0,
         ..Default::default()
     });
 
@@ -335,7 +335,7 @@ fn good_posture_pauses_during_pitch_off_axis() {
 #[test]
 fn eye_rest_requires_both_axes_have_face() {
     let mut engine = PostureTickEngine::new(TimingThresholds {
-        eyest_threshold_seconds: 2.0,
+        eyerest_threshold_seconds: 2.0,
         ..Default::default()
     });
 

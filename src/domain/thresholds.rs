@@ -29,7 +29,8 @@ pub struct TimingThresholds {
     /// 正面朝向累积时长阈值（秒）。
     pub facing_threshold_seconds: f64,
     /// 用眼休息累积时长阈值（秒）。
-    pub eyest_threshold_seconds: f64,
+    #[serde(alias = "eyest_threshold_seconds")]
+    pub eyerest_threshold_seconds: f64,
 }
 
 impl Default for TimingThresholds {
@@ -39,7 +40,7 @@ impl Default for TimingThresholds {
             off_axis_repeat_interval_seconds: defaults::OFF_AXIS_REPEAT_INTERVAL,
             off_axis_severe_threshold_seconds: defaults::OFF_AXIS_SEVERE_THRESHOLD,
             facing_threshold_seconds: defaults::FACING_THRESHOLD,
-            eyest_threshold_seconds: defaults::EYEREST_THRESHOLD,
+            eyerest_threshold_seconds: defaults::EYEREST_THRESHOLD,
         }
     }
 }
@@ -55,6 +56,6 @@ mod tests {
         assert_eq!(t.off_axis_repeat_interval_seconds, defaults::OFF_AXIS_REPEAT_INTERVAL);
         assert_eq!(t.off_axis_severe_threshold_seconds, defaults::OFF_AXIS_SEVERE_THRESHOLD);
         assert_eq!(t.facing_threshold_seconds, defaults::FACING_THRESHOLD);
-        assert_eq!(t.eyest_threshold_seconds, defaults::EYEREST_THRESHOLD);
+        assert_eq!(t.eyerest_threshold_seconds, defaults::EYEREST_THRESHOLD);
     }
 }

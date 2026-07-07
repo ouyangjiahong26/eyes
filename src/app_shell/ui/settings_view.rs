@@ -1,4 +1,4 @@
-//! VS2 设置面板：yaw/pitch 阈值滑块、校准入口、摄像头下拉、声音/自启开关、
+//! 设置面板：yaw/pitch 阈值滑块、校准入口、摄像头下拉、声音/自启开关、
 //! 语言选择、高级设置、保存/取消。
 //!
 //! 数据流：
@@ -13,8 +13,8 @@ use bevy::prelude::*;
 
 use crate::domain::config::AppConfig;
 use super::i18n::LocalizedText;
-use crate::monitoring::camera_enumerator::CameraDevice;
-use crate::monitoring::channel::WorkerCommand;
+use crate::monitoring::camera::camera_enumerator::CameraDevice;
+use crate::monitoring::pipeline::channel::WorkerCommand;
 use crate::AppFont;
 
 // ── 资源 ───────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ impl SettingsDraft {
             off_axis_repeat_interval: config.timing.off_axis_repeat_interval_seconds,
             off_axis_severe_threshold: config.timing.off_axis_severe_threshold_seconds,
             facing_threshold: config.timing.facing_threshold_seconds,
-            eyerest_threshold: config.timing.eyest_threshold_seconds,
+            eyerest_threshold: config.timing.eyerest_threshold_seconds,
             camera_list,
             advanced_visible: false,
         }
@@ -123,7 +123,7 @@ pub(crate) enum SliderKind {
     Repeat,
     Severe,
     Facing,
-    Eyest,
+    Eyerest,
 }
 
 /// 滑块轨道（可点击区域）。
@@ -331,7 +331,7 @@ pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont
                     spawn_slider_row(adv, &font, SliderKind::Repeat, "settings.repeat_interval");
                     spawn_slider_row(adv, &font, SliderKind::Severe, "settings.severe_threshold");
                     spawn_slider_row(adv, &font, SliderKind::Facing, "settings.facing_threshold");
-                    spawn_slider_row(adv, &font, SliderKind::Eyest, "settings.eyerest_threshold");
+                    spawn_slider_row(adv, &font, SliderKind::Eyerest, "settings.eyerest_threshold");
                 });
 
             // ── 底部按钮 ─────────────────────────────────────────
@@ -587,7 +587,7 @@ pub(crate) fn handle_slider_click(
                 draft.facing_threshold =
                     snap(frac, FACING_MIN, FACING_MAX, FACING_STEP);
             }
-            SliderKind::Eyest => {
+            SliderKind::Eyerest => {
                 draft.eyerest_threshold =
                     snap(frac, EYEREST_MIN, EYEREST_MAX, EYEREST_STEP);
             }
@@ -703,7 +703,7 @@ pub(crate) fn refresh_settings_ui(
     mut sound_state: Query<&mut BackgroundColor, (With<SoundToggle>, Without<SoundStateLabel>)>,
     mut autostart_state: Query<
         &mut BackgroundColor,
-        (With<AutostartToggle>, Without<SoundToggle>),
+        (With<AutostartToggle>, Without<AutostartStateLabel>),
     >,
     mut advanced_section: Query<&mut Visibility, With<AdvancedSection>>,
 ) {
@@ -760,7 +760,7 @@ pub(crate) fn refresh_settings_ui(
                 pct(draft.facing_threshold, FACING_MIN, FACING_MAX),
                 format!("{:.0}s", draft.facing_threshold),
             ),
-            SliderKind::Eyest => (
+            SliderKind::Eyerest => (
                 pct(draft.eyerest_threshold, EYEREST_MIN, EYEREST_MAX),
                 format!("{:.0}s", draft.eyerest_threshold),
             ),
@@ -842,7 +842,7 @@ pub(crate) fn draft_to_config(draft: &SettingsDraft, base: &AppConfig) -> AppCon
     cfg.timing.off_axis_repeat_interval_seconds = draft.off_axis_repeat_interval;
     cfg.timing.off_axis_severe_threshold_seconds = draft.off_axis_severe_threshold;
     cfg.timing.facing_threshold_seconds = draft.facing_threshold;
-    cfg.timing.eyest_threshold_seconds = draft.eyerest_threshold;
+    cfg.timing.eyerest_threshold_seconds = draft.eyerest_threshold;
     cfg
 }
 
@@ -885,12 +885,12 @@ pub(crate) fn handle_save(
 
     // 持久化到磁盘（原子写：temp + rename）
     if let Err(e) = resources.config_state.set(new_config.clone()) {
-        eprintln!("[eyes] 配置写入失败: {e}");
+        bevy::log::warn!("配置写入失败: {e}");
     }
 
     // 通知 worker 用新阈值 / 新摄像头
     if let Some(worker) = &worker {
-        let _ = worker.0.send(WorkerCommand::SetConfig(Box::new(new_config.clone())));
+        let _ = worker.0.0.send(WorkerCommand::SetConfig(Box::new(new_config.clone())));
     }
 
     // 语言切换 → 刷新 i18n 资源
@@ -963,11 +963,11 @@ fn apply_autostart(enabled: bool) {
                 auto.disable()
             };
             if let Err(e) = result {
-                eprintln!("[eyes] autostart {:?} 失败: {e}", enabled);
+                bevy::log::warn!("autostart {:?} 失败: {e}", enabled);
             }
         }
         Err(e) => {
-            eprintln!("[eyes] AutoLaunch 构造失败: {e}");
+            bevy::log::warn!("AutoLaunch 构造失败: {e}");
         }
     }
 }

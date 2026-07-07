@@ -1,7 +1,7 @@
 use super::classifier::PoseState;
 use super::thresholds::TimingThresholds;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WarningLevel {
     Normal,
     Warning,
@@ -231,7 +231,7 @@ pub struct PostureTickEngine {
     off_axis_repeat_interval: f64,
     off_axis_severe_threshold: f64,
     facing_threshold: f64,
-    eyest_threshold: f64,
+    eyerest_threshold: f64,
     facing_seconds: f64,
     presence_seconds: f64,
     yaw_oa: OffAxisState,
@@ -251,7 +251,7 @@ impl PostureTickEngine {
             off_axis_repeat_interval: timing.off_axis_repeat_interval_seconds,
             off_axis_severe_threshold: timing.off_axis_severe_threshold_seconds,
             facing_threshold: timing.facing_threshold_seconds,
-            eyest_threshold: timing.eyest_threshold_seconds,
+            eyerest_threshold: timing.eyerest_threshold_seconds,
             facing_seconds: 0.0,
             presence_seconds: 0.0,
             yaw_oa: OffAxisState::new_yaw(),
@@ -265,7 +265,7 @@ impl PostureTickEngine {
         self.off_axis_repeat_interval = timing.off_axis_repeat_interval_seconds;
         self.off_axis_severe_threshold = timing.off_axis_severe_threshold_seconds;
         self.facing_threshold = timing.facing_threshold_seconds;
-        self.eyest_threshold = timing.eyest_threshold_seconds;
+        self.eyerest_threshold = timing.eyerest_threshold_seconds;
     }
 
     /// 当前综合警告级别（取两轴中更严重者）。
@@ -322,7 +322,7 @@ impl PostureTickEngine {
         let any_face = yaw_state != PoseState::NoFace && pitch_state != PoseState::NoFace;
         if any_face {
             self.presence_seconds += dt;
-            if self.presence_seconds >= self.eyest_threshold {
+            if self.presence_seconds >= self.eyerest_threshold {
                 self.presence_seconds = 0.0;
                 events.push(SenseEvent::EyeRest);
             }
@@ -343,7 +343,7 @@ mod tests {
             off_axis_repeat_interval_seconds: 10.0,
             off_axis_severe_threshold_seconds: 15.0,
             facing_threshold_seconds: 300.0,
-            eyest_threshold_seconds: 900.0,
+            eyerest_threshold_seconds: 900.0,
         });
 
         // 累积一些 facing_seconds
@@ -369,7 +369,7 @@ mod tests {
             off_axis_repeat_interval_seconds: 30.0,
             off_axis_severe_threshold_seconds: 20.0,
             facing_threshold_seconds: 600.0,
-            eyest_threshold_seconds: 1800.0,
+            eyerest_threshold_seconds: 1800.0,
         });
 
         // 累加状态不变
@@ -381,7 +381,7 @@ mod tests {
         assert_eq!(engine.off_axis_repeat_interval, 30.0);
         assert_eq!(engine.off_axis_severe_threshold, 20.0);
         assert_eq!(engine.facing_threshold, 600.0);
-        assert_eq!(engine.eyest_threshold, 1800.0);
+        assert_eq!(engine.eyerest_threshold, 1800.0);
     }
 
     #[test]
@@ -391,7 +391,7 @@ mod tests {
             off_axis_repeat_interval_seconds: 10.0,
             off_axis_severe_threshold_seconds: 5.0,
             facing_threshold_seconds: 300.0,
-            eyest_threshold_seconds: 900.0,
+            eyerest_threshold_seconds: 900.0,
         });
 
         // 触发 Warning 状态
@@ -406,7 +406,7 @@ mod tests {
             off_axis_repeat_interval_seconds: 5.0,
             off_axis_severe_threshold_seconds: 20.0,
             facing_threshold_seconds: 100.0,
-            eyest_threshold_seconds: 500.0,
+            eyerest_threshold_seconds: 500.0,
         });
 
         // 警告状态不变

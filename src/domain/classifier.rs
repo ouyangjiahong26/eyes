@@ -39,7 +39,7 @@ impl Default for Thresholds {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PoseState {
     FacingScreen,
     OffAxisLeft,
@@ -49,7 +49,7 @@ pub enum PoseState {
     NoFace,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PoseClassification {
     pub yaw_state: PoseState,
     pub pitch_state: PoseState,

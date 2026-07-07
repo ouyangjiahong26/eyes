@@ -25,7 +25,6 @@ fn roundtrips_saved_config_and_uses_defaults_for_partial_yaml() {
         neutral_yaw: 3.0,
         neutral_pitch: -2.0,
         camera_index: 1,
-        snooze_until_iso: Some("2026-05-11T12:00:00+08:00".to_string()),
         sound_enabled: true,
         autostart_enabled: true,
         language: "en-US".to_string(),

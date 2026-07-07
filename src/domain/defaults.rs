@@ -6,16 +6,16 @@
 // ── 分类器阈值 ───────────────────────────────────────────────────
 
 /// yaw 轴偏离阈值（度）。
-pub const YAW_DEG: f64 = 1.0;
+pub const YAW_DEG: f64 = 5.0;
 
 /// yaw 轴滞后（度）。
-pub const YAW_HYSTERESIS_DEG: f64 = 0.5;
+pub const YAW_HYSTERESIS_DEG: f64 = 2.5;
 
 /// pitch 轴偏离阈值（度）。
-pub const PITCH_DEG: f64 = 5.0;
+pub const PITCH_DEG: f64 = 10.0;
 
 /// pitch 轴滞后（度）。
-pub const PITCH_HYSTERESIS_DEG: f64 = 2.5;
+pub const PITCH_HYSTERESIS_DEG: f64 = 5.0;
 
 // ── 姿态引擎阈值 ─────────────────────────────────────────────────
 

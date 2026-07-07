@@ -1,5 +1,5 @@
 use eyes_lib::domain::classifier::HeadPose;
-use eyes_lib::monitoring::detector::Detector;
+use eyes_lib::monitoring::pipeline::detector::Detector;
 
 #[test]
 fn detector_trait_can_be_implemented_by_fake_for_tests() {

@@ -109,7 +109,7 @@ fn classifies_pitch_relative_to_neutral() {
         classify(
             Some(HeadPose {
                 yaw: 0.0,
-                pitch: 10.0,
+                pitch: 15.0,
             }),
             None,
             None,
@@ -124,7 +124,7 @@ fn classifies_pitch_relative_to_neutral() {
         classify(
             Some(HeadPose {
                 yaw: 0.0,
-                pitch: -10.0,
+                pitch: -15.0,
             }),
             None,
             None,
@@ -142,8 +142,8 @@ fn yaw_and_pitch_can_deviate_simultaneously() {
     assert_eq!(
         classify(
             Some(HeadPose {
-                yaw: -5.0,
-                pitch: 10.0,
+                yaw: -6.0,
+                pitch: 12.0,
             }),
             None,
             None,
@@ -157,8 +157,8 @@ fn yaw_and_pitch_can_deviate_simultaneously() {
     assert_eq!(
         classify(
             Some(HeadPose {
-                yaw: 5.0,
-                pitch: -10.0,
+                yaw: 6.0,
+                pitch: -12.0,
             }),
             None,
             None,
@@ -195,7 +195,7 @@ fn classifies_relative_to_non_zero_neutral() {
     assert_eq!(
         classify(
             Some(HeadPose {
-                yaw: 15.0,
+                yaw: 16.0,
                 pitch: 5.0,
             }),
             Some(neutral),
@@ -211,7 +211,7 @@ fn classifies_relative_to_non_zero_neutral() {
         classify(
             Some(HeadPose {
                 yaw: 10.0,
-                pitch: 12.0,
+                pitch: 16.0,
             }),
             Some(neutral),
             None,
