@@ -1,4 +1,4 @@
-//! 监控事件类型与输出抽象。
+//! 监控事件类型。
 
 use bevy::ecs::event::Event;
 
@@ -24,9 +24,6 @@ pub enum MonitoringEvent {
         kind: AppEventKind,
         data: serde_json::Value,
     },
-    LogInfo {
-        message: String,
-    },
     CalibrationComplete {
         yaw: f64,
         pitch: f64,
@@ -35,8 +32,4 @@ pub enum MonitoringEvent {
     CalibrationFailed {
         reason: String,
     },
-}
-
-pub trait EventSink: Send + 'static {
-    fn emit(&self, event: MonitoringEvent);
 }

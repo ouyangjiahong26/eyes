@@ -1,7 +1,6 @@
 //! 通过 DirectShow 枚举系统中的摄像头设备。
 //!
-//! COM vtable 定义分离在 `win32::directshow_ffi` 中，
-//! 本文件只包含纯枚举逻辑。
+//! COM vtable 定义分离在 `win32` 中，本文件只包含纯枚举逻辑。
 
 use serde::Serialize;
 
@@ -40,7 +39,7 @@ pub fn list_cameras() -> Result<Vec<CameraDevice>, String> {
 unsafe fn enumerate_video_devices() -> Result<Vec<CameraDevice>, String> {
     use windows_sys::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
 
-    use super::win32::directshow_ffi::*;
+    use super::win32::*;
 
     let mut dev_enum_ptr: *mut core::ffi::c_void = core::ptr::null_mut();
     let hr = CoCreateInstance(
@@ -85,7 +84,7 @@ unsafe fn enumerate_video_devices() -> Result<Vec<CameraDevice>, String> {
             break;
         }
 
-        let name = super::win32::directshow_ffi::get_device_friendly_name(moniker)
+        let name = super::win32::get_device_friendly_name(moniker)
             .unwrap_or_else(|| format!("摄像头 {}", index));
 
         cameras.push(CameraDevice { index, name });

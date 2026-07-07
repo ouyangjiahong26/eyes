@@ -272,23 +272,58 @@ src/
 ├── main.rs                   二进制入口
 ├── lib.rs                    Bevy App 构造、系统调度
 ├── app_shell/                应用壳层
-│   ├── main_view.rs          主视图 UI（姿态徽标、预览、Settings 按钮）
-│   ├── settings_view.rs      设置面板 UI
-│   ├── calibration_view.rs   校准视图 UI
-│   ├── notification.rs       系统通知（notify-rust）
-│   ├── tray.rs               系统托盘
-│   ├── platform.rs           Windows DLL 搜索路径、autostart
-│   └── contract.rs           托盘菜单项 ID 常量
-├── audio/                    声音提醒（bevy_kira_audio）
-├── i18n/                     国际化（zh.toml / en.toml）
-├── app_state.rs              共享状态容器
-├── worker_setup.rs           后台 worker 启动
-├── domain/                   纯领域逻辑（分类、计时、校准、配置、事件日志、静默）
-└── monitoring/               摄像头、检测器、worker、事件桥接
-    ├── event_sink/           EventSink trait + BevyEventSink
-    ├── orchestrator.rs       WorkerOrchestrator
-    ├── worker.rs             MonitoringWorker
-    └── ...
+│   ├── mod.rs                模块聚合、AppView 状态
+│   ├── contract.rs           托盘菜单项 ID 常量
+│   ├── platform.rs           Windows DLL 搜索路径、开机自启
+│   ├── system/               系统级集成
+│   │   ├── mod.rs
+│   │   ├── notification.rs   系统通知（notify-rust）
+│   │   └── tray.rs           系统托盘
+│   └── ui/                   UI 视图与国际化
+│       ├── mod.rs
+│       ├── main_view.rs      主视图（姿态徽标、预览、Settings）
+│       ├── settings_view.rs  设置面板
+│       ├── calibration_view.rs 校准视图
+│       └── i18n/             国际化（zh.toml / en.toml）
+│           ├── mod.rs
+│           ├── zh.toml
+│           └── en.toml
+├── audio.rs                  声音提醒（bevy_kira_audio）
+├── domain/                   纯领域逻辑
+│   ├── mod.rs
+│   ├── classifier.rs         头部姿态分类
+│   ├── config.rs             AppConfig 配置结构
+│   ├── defaults.rs           默认阈值
+│   ├── calibration.rs        中性姿态校准
+│   ├── posture_tick_engine.rs 姿态状态机与计时
+│   ├── thresholds.rs         阈值结构
+│   ├── snooze.rs             暂停提醒
+│   ├── event_log.rs          事件日志
+│   └── paths.rs              配置/日志目录
+├── monitoring/               摄像头、检测器、worker、事件桥接
+│   ├── mod.rs
+│   ├── preview.rs            摄像头预览纹理
+│   ├── camera/               摄像头采集
+│   │   ├── mod.rs
+│   │   ├── opencv_camera.rs  OpenCV 摄像头读取
+│   │   ├── camera_enumerator.rs 摄像头枚举
+│   │   └── win32.rs          Windows DirectShow 枚举
+│   ├── vision/               视觉检测
+│   │   ├── mod.rs
+│   │   ├── onnx_detector.rs  ONNX YuNet 人脸检测
+│   │   ├── linalg3.rs        3D 线性代数工具
+│   │   └── solve_pnp.rs      solvePnP 头部姿态估计
+│   ├── pipeline/             监测管道
+│   │   ├── mod.rs
+│   │   ├── orchestrator.rs   WorkerOrchestrator
+│   │   ├── worker.rs         MonitoringWorker
+│   │   ├── channel.rs        worker 命令通道
+│   │   └── detector.rs       Detector trait
+│   └── events/               事件类型与桥接
+│       ├── mod.rs
+│       ├── types.rs          MonitoringEvent
+│       └── event_mapping.rs  事件到 UI 文本映射
+└── worker_setup.rs           后台 worker 启动
 tests/                        行为测试
 models/                       ONNX 模型文件
 docs/                         ADR、PRD、迁移计划

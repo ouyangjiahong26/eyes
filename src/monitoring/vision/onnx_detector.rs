@@ -8,7 +8,7 @@
 //! 模型输出 12 个张量（3 个尺度 × cls/obj/bbox/kps），anchor-free 解码。
 
 use crate::domain::classifier::HeadPose;
-use crate::monitoring::detector::Detector;
+use crate::monitoring::pipeline::detector::Detector;
 use super::solve_pnp;
 
 // ── 常量 ───────────────────────────────────────────────────────
@@ -217,8 +217,8 @@ fn estimate_camera_matrix(width: u32, height: u32) -> [[f64; 3]; 3] {
 ///
 /// 找不到模型文件或加载失败时返回 `None` 并打印日志，检测功能退化为不可用。
 #[cfg(all(feature = "opencv-camera", feature = "onnx-detector"))]
-pub fn load_onnx_detector() -> Option<Box<dyn crate::monitoring::detector::Detector>> {
-    use crate::monitoring::detector::Detector;
+pub fn load_onnx_detector() -> Option<Box<dyn crate::monitoring::pipeline::detector::Detector>> {
+    use crate::monitoring::pipeline::detector::Detector;
 
     let path = resolve_model_path()?;
     match YuNetDetector::new(path.to_str().unwrap_or("")) {
@@ -282,7 +282,7 @@ fn resolve_model_path() -> Option<std::path::PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::monitoring::detector::Detector;
+    use crate::monitoring::pipeline::detector::Detector;
 
     #[test]
     fn camera_matrix_centered() {

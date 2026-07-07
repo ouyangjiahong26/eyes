@@ -1,4 +1,4 @@
-//! VS1+VS2 主视图：姿态徽标 + yaw/pitch 读数 + 预览 + Settings 按钮。
+//! 主视图：姿态徽标 + yaw/pitch 读数 + 预览 + Settings 按钮。
 //!
 //! 数据流：
 //! ```text
@@ -25,7 +25,7 @@ use crate::app_shell::settings_view::{SettingsDraft, SettingsPanelState};
 use crate::app_shell::AppView;
 use super::i18n::{I18nTable, LocalizedText};
 use crate::AppFont;
-use crate::monitoring::camera_enumerator;
+use crate::monitoring::camera::camera_enumerator;
 use crate::monitoring::events::MonitoringEvent;
 
 // ── 资源 ───────────────────────────────────────────────────────

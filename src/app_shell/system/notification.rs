@@ -1,6 +1,6 @@
 //! 系统通知：订阅 `WarningLevelChanged`，通过 `notify-rust` 发 toast。
 //!
-//! VS4：通知触发逻辑独立于设置面板（VS2），只订阅事件总线。
+//! 通知触发逻辑独立于设置面板，只订阅事件总线。
 //! snooze 状态下（`SnoozeResource` 处于激活态）跳过通知，避免打扰。
 //!
 //! 通知内容映射（基于 worker 产出的 level 字符串）：

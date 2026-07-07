@@ -1,7 +1,7 @@
 //! 构建脚本。
 //!
 //! 两件事：
-//! 1. 生成声音提醒的两段 wav 到 `OUT_DIR`（VS5），运行时用 `include_bytes!`
+//! 1. 生成声音提醒的两段 wav 到 `OUT_DIR`，运行时用 `include_bytes!`
 //!    嵌入二进制。参考 tanchishe 的 wav 生成套路：短促上升/下降音 + 线性包络。
 //! 2. 仅在 Linux 且启用 `opencv-camera` feature 时：用 `pkg-config` 验证
 //!    系统 OpenCV（`opencv4`）可被发现。失败时给出明确的安装指引，而不是让

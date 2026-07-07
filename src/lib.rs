@@ -1,13 +1,12 @@
 //! Eyes 应用库入口。
 //!
-//! VS1：端到端垂直切片——从摄像头采集到主窗口 UI 文本和图像。
-//! VS2：设置面板（AppView 切换、阈值滑块、摄像头/语言选择、保存/取消、i18n 运行时刷新）。
+//! - 主视图与监控端到端：从摄像头采集到主窗口 UI 文本和图像。
+//! - 设置面板：AppView 切换、阈值滑块、摄像头/语言选择、保存/取消、i18n 运行时刷新。
 //!
-//! 监控事件经 `BevyEventSink` → mpsc channel → Bevy `Events<MonitoringEvent>`
+//! 监控事件经 mpsc channel → Bevy `Events<MonitoringEvent>`
 //! → ECS 资源 → UI 节点。
 
 pub mod app_shell;
-pub mod app_state;
 pub mod audio;
 pub mod domain;
 pub mod monitoring;
@@ -41,8 +40,8 @@ use app_shell::notification::{
 use app_shell::tray::{spawn_tray, TrayMenuCommand};
 use domain::config::ConfigState;
 use app_shell::ui::i18n::{refresh_localized_text, I18nTable};
-use monitoring::channel::{WorkerCommand, WorkerSender};
 use monitoring::events::MonitoringEvent;
+use monitoring::pipeline::channel::{WorkerCommand, WorkerSender};
 use worker_setup::spawn_worker;
 
 /// 托盘命令通道，作为 Bevy Resource 注入主线程。
@@ -67,7 +66,7 @@ pub struct AppFont(pub Handle<Font>);
 
 /// 启动 Eyes 应用。
 pub fn run() {
-    // VS7：把安装目录加入 DLL 搜索路径，必须在任何 DLL 加载之前完成。
+    // Windows 打包：把安装目录加入 DLL 搜索路径，必须在任何 DLL 加载之前完成。
     app_shell::platform::add_resource_dll_dir();
 
     let config_state = domain::config::load_config_state();
@@ -90,7 +89,7 @@ pub fn run() {
                 ..default()
             }),
         )
-        // VS5：bevy_kira_audio 取代 bevy 自带音频插件（见 Cargo.toml 中已禁用 bevy_audio）。
+        // 声音提醒：bevy_kira_audio 取代 bevy 自带音频插件（见 Cargo.toml 中已禁用 bevy_audio）。
         .add_plugins(bevy_kira_audio::AudioPlugin)
         .insert_resource(AppResources { config_state })
         .insert_resource(I18nTable::for_language(&language))
@@ -151,7 +150,7 @@ pub fn run() {
                 refresh_calibration_ui,
             ),
         )
-        // VS5：声音提醒（独立一组，避免单组系统数超过 Bevy 的元组上限）。
+        // 声音提醒（独立一组，避免单组系统数超过 Bevy 的元组上限）。
         .add_systems(Update, audio::play_sound_alert_system)
         .run();
 }
@@ -176,7 +175,7 @@ fn setup(
     let (event_tx, event_rx) = mpsc::channel::<MonitoringEvent>();
     commands.insert_resource(MonitoringReceiver(Mutex::new(event_rx)));
 
-    // 后台 worker：用 BevyEventSink 把监控事件推到上面的 channel。
+    // 后台 worker：把监控事件推到上面的 channel。
     let worker_tx = spawn_worker(resources.config_state.clone(), event_tx);
     commands.insert_resource(WorkerHandle(worker_tx));
 
@@ -250,7 +249,7 @@ fn handle_tray_commands(
         match cmd {
             TrayMenuCommand::Quit => {
                 // 先通知后台 worker 停止，再触发 Bevy 退出。
-                let _ = worker.0.send(WorkerCommand::Stop);
+                let _ = worker.0.0.send(WorkerCommand::Stop);
                 exit.send(AppExit::Success);
             }
             TrayMenuCommand::Open => {
@@ -260,19 +259,19 @@ fn handle_tray_commands(
                 }
             }
             TrayMenuCommand::Pause30Min => {
-                let _ = worker.0.send(WorkerCommand::Snooze(30.0 * 60.0));
+                let _ = worker.0.0.send(WorkerCommand::Snooze(30.0 * 60.0));
                 snooze.paused = true;
             }
             TrayMenuCommand::Pause1Hour => {
-                let _ = worker.0.send(WorkerCommand::Snooze(60.0 * 60.0));
+                let _ = worker.0.0.send(WorkerCommand::Snooze(60.0 * 60.0));
                 snooze.paused = true;
             }
             TrayMenuCommand::PauseUntilRestart => {
-                let _ = worker.0.send(WorkerCommand::Snooze(f64::INFINITY));
+                let _ = worker.0.0.send(WorkerCommand::Snooze(f64::INFINITY));
                 snooze.paused = true;
             }
             TrayMenuCommand::Resume => {
-                let _ = worker.0.send(WorkerCommand::Resume);
+                let _ = worker.0.0.send(WorkerCommand::Resume);
                 snooze.paused = false;
             }
         }

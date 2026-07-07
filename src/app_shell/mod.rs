@@ -18,6 +18,6 @@ pub enum AppView {
     #[default]
     Main,
     Settings,
-    /// VS3 校准流程：倒计时采集 + 实时姿态显示。
+    /// 校准流程：倒计时采集 + 实时姿态显示。
     Calibration,
 }

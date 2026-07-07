@@ -1,4 +1,4 @@
-//! VS3 校准视图：跨视图的 5 秒中性姿态采集流程。
+//! 校准视图：跨视图的 5 秒中性姿态采集流程。
 //!
 //! 流程：
 //! ```text
@@ -27,8 +27,8 @@ use crate::app_shell::settings_view::CalibrateButton;
 use crate::app_shell::AppView;
 use super::i18n::{I18nTable, LocalizedText};
 use crate::AppFont;
-use crate::monitoring::channel::WorkerCommand;
 use crate::monitoring::events::MonitoringEvent;
+use crate::monitoring::pipeline::channel::WorkerCommand;
 use crate::WorkerHandle;
 
 /// 校准时长（秒），与 orchestrator 的 CalibrationSession::new(5.0) 对应。
@@ -274,7 +274,7 @@ pub(crate) fn handle_calibrate(
 
     // 通知 worker 进入校准会话
     if let Some(worker) = &worker {
-        let _ = worker.0.send(WorkerCommand::StartCalibration);
+        let _ = worker.0.0.send(WorkerCommand::StartCalibration);
     }
 
     // 初始化校准视图状态
@@ -462,7 +462,7 @@ pub(crate) fn handle_cancel_calibration(
         return;
     }
     if let Some(worker) = &worker {
-        let _ = worker.0.send(WorkerCommand::CancelCalibration);
+        let _ = worker.0.0.send(WorkerCommand::CancelCalibration);
     }
     *state = CalibrationViewState::default();
     *app_view = AppView::Settings;

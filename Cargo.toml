@@ -27,17 +27,17 @@ name = "eyes_lib"
 crate-type = ["rlib"]
 
 [features]
-# VS0：默认不启用摄像头和检测器；构建快，CI 也能跑
+# 默认不启用摄像头和检测器；构建快，CI 也能跑。
 default = []
 opencv-camera = ["dep:opencv"]
 onnx-detector = ["dep:ort", "dep:nalgebra"]
 
 [dependencies]
-# Bevy 桌面引擎。VS0 用 DefaultPlugins 创建原生窗口；
+# Bevy 桌面引擎。应用启动时用 DefaultPlugins 创建原生窗口；
 # 默认 features 包含渲染、winit、窗口等，能直接弹出一个空白窗口。
-# 后续切片如需缩减编译时间可裁剪 features。
+# 后续如需缩减编译时间可裁剪 features。
 #
-# VS5：禁用默认的 `bevy_audio`/`vorbis`。bevy_kira_audio 与 bevy 自带音频插件
+# 声音提醒：禁用默认的 `bevy_audio`/`vorbis`。bevy_kira_audio 与 bevy 自带音频插件
 # 冲突（两者都注册 Audio 资源），必须关掉前者改用 kira。下面显式列回除音频外
 # 的全部默认 feature，保证其余行为不变。
 bevy = { version = "0.15", default-features = false, features = [
@@ -78,7 +78,7 @@ tray-icon = "0.24"
 auto-launch = "0.6"
 notify-rust = "4"
 
-# VS5：声音提醒。bevy_kira_audio 通过 kira 播放 wav；
+# 声音提醒。bevy_kira_audio 通过 kira 播放 wav；
 # kira 版本须与 bevy_kira_audio 0.22 内置的 0.9.6 对齐，直接引用以构造
 # StaticSoundData（从嵌入的 wav 字节解码）。
 bevy_kira_audio = { version = "0.22", default-features = false, features = ["wav"] }
@@ -89,7 +89,9 @@ base64 = "0.22"
 png = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# 运行时 config.yaml 读写。
 serde_yaml = "0.9"
+# 编译期内嵌 i18n 翻译表（zh.toml / en.toml）解析。
 toml = "0.8"
 
 # 后端基础

@@ -1,6 +1,6 @@
 //! 系统托盘：菜单、图标与事件转发。
 //!
-//! VS0 在独立线程里跑托盘，菜单事件通过 `mpsc::Sender` 推到主线程。
+//! 应用在独立线程里跑托盘，菜单事件通过 `mpsc::Sender` 推到主线程。
 //! Bevy 端把对应 `Receiver` 装到 Resource，由 `Update` 系统轮询并转成
 //! `AppExit` 等 Bevy 事件。
 //!
@@ -20,7 +20,7 @@ use crate::app_shell::contract::{
 
 /// 托盘菜单项的语义化命令。
 ///
-/// VS0 只关心 Open / Quit；VS4 扩展了 Pause / Resume 用于 snooze 控制。
+/// 初始化阶段只关心 Open / Quit；snooze 功能扩展后增加 Pause / Resume 控制。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayMenuCommand {
     /// 用户点了 "Open"：把主窗口拉回前台。
@@ -144,7 +144,7 @@ fn build_menu() -> Menu {
 
 /// 程序化生成 32×32 RGBA 图标。
 ///
-/// VS0 不引入 asset 资源：用一个深蓝灰实色方块占位。
+/// 初始化阶段不引入 asset 资源：用一个深蓝灰实色方块占位。
 /// 后续切片在引入 `assets/` 资源时换成真实 PNG。
 fn build_icon() -> Icon {
     const WIDTH: u32 = 32;

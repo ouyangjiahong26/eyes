@@ -1,3 +1,5 @@
+#![cfg(target_os = "windows")]
+
 //! DirectShow COM vtable 定义。
 //!
 //! 为了避免引入 `windows` crate（编译时间长、体积大），
