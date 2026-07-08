@@ -14,6 +14,9 @@ pub struct CalibrationResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EmptySamples;
 
+/// 默认校准时长（秒）。
+pub const CALIBRATION_DURATION: f32 = 5.0;
+
 const COUNTDOWN_EPSILON: f64 = 1e-9;
 
 pub fn compute_median_pose(samples: &[PoseSample]) -> Result<PoseSample, EmptySamples> {

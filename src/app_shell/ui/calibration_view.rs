@@ -25,14 +25,12 @@ use bevy::prelude::*;
 
 use crate::app_shell::settings_view::CalibrateButton;
 use crate::app_shell::AppView;
+use crate::domain::calibration::CALIBRATION_DURATION;
 use super::i18n::{I18nTable, LocalizedText};
 use crate::AppFont;
 use crate::monitoring::events::MonitoringEvent;
 use crate::monitoring::pipeline::channel::WorkerCommand;
 use crate::WorkerHandle;
-
-/// 校准时长（秒），与 orchestrator 的 CalibrationSession::new(5.0) 对应。
-const CALIBRATION_DURATION: f32 = 5.0;
 
 /// 校准成功后自动返回 Settings 的延时（秒）。
 const SUCCESS_RETURN_DELAY: f32 = 1.5;

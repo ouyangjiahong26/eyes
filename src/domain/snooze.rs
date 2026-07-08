@@ -4,5 +4,4 @@ pub enum SnoozeState {
     Indefinite,
     Active { until_iso: String },
     Expired,
-    Malformed,
 }

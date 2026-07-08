@@ -1,6 +1,6 @@
 //! WorkerOrchestrator —— 管理后台监控 worker 的完整生命周期。
 
-use crate::domain::calibration::{CalibrationResult, CalibrationSession};
+use crate::domain::calibration::{CalibrationResult, CalibrationSession, CALIBRATION_DURATION};
 use crate::domain::classifier::PoseState;
 use crate::domain::config::ConfigState;
 use crate::monitoring::events::MonitoringEvent;
@@ -195,7 +195,7 @@ impl WorkerOrchestrator {
                     }
                 }
                 Ok(WorkerCommand::StartCalibration) => {
-                    let mut session = CalibrationSession::new(5.0);
+                    let mut session = CalibrationSession::new(CALIBRATION_DURATION as f64);
                     session.start();
                     self.state.calibration_session = Some(session);
                     self.state.calibration_no_face_seconds = 0.0;

@@ -95,7 +95,6 @@ serde_yaml = "0.9"
 toml = "0.8"
 
 # 后端基础
-time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 dirs = "6"
 
 # 摄像头与检测器（feature-gated）

@@ -21,7 +21,8 @@ use bevy::image::{CompressedImageFormats, Image, ImageSampler, ImageType};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
-use crate::app_shell::settings_view::{SettingsDraft, SettingsPanelState};
+use crate::app_shell::settings_draft::SettingsDraft;
+use crate::app_shell::settings_view::SettingsPanelState;
 use crate::app_shell::AppView;
 use super::i18n::{I18nTable, LocalizedText};
 use crate::AppFont;

@@ -8,6 +8,7 @@ pub use system::notification;
 pub use system::tray;
 pub use ui::calibration_view;
 pub use ui::main_view;
+pub use ui::settings_draft;
 pub use ui::settings_view;
 
 use bevy::prelude::*;
