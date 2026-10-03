@@ -35,7 +35,7 @@
 
 ### Windows
 
-从 [Releases](https://github.com/cislunarspace/eyes/releases) 下载 `.msi` 安装包，双击安装。安装包含可执行文件、检测模型与运行时库（OpenCV、ONNX Runtime），无需额外装任何运行时依赖。
+从 [Releases](https://github.com/ouyangjiahong26/eyes/releases) 下载 `.msi` 安装包，双击安装。安装包含可执行文件、检测模型与运行时库（OpenCV、ONNX Runtime），无需额外装任何运行时依赖。
 
 安装后：
 
@@ -66,7 +66,7 @@
   ```
   安装后注销重新登录生效。
 
-**安装 .deb / .rpm**：从 [Releases](https://github.com/cislunarspace/eyes/releases) 下载对应包：
+**安装 .deb / .rpm**：从 [Releases](https://github.com/ouyangjiahong26/eyes/releases) 下载对应包：
 
 ```bash
 # Debian / Ubuntu
@@ -91,7 +91,7 @@ sudo rpm -e eyes     # Fedora/RHEL
 **从源码构建与打包**：
 
 ```bash
-git clone https://github.com/cislunarspace/eyes.git
+git clone https://github.com/ouyangjiahong26/eyes.git
 cd eyes
 cargo build --release                 # 需先装好 OpenCV 开发包
 cargo install cargo-bundle            # 打包工具（首次）
@@ -104,7 +104,7 @@ cargo bundle --format rpm             # 产出 .rpm
 ### 从源码启动
 
 ```bash
-git clone https://github.com/cislunarspace/eyes.git
+git clone https://github.com/ouyangjiahong26/eyes.git
 cd eyes
 ```
 
