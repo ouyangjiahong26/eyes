@@ -119,12 +119,7 @@ mod tests {
         // 2×2 帧：
         //   行 0: 红(255,0,0) 绿(0,255,0)
         //   行 1: 蓝(0,0,255) 白(255,255,255)
-        let frame = Frame::rgb(
-            2,
-            2,
-            vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255],
-        )
-        .unwrap();
+        let frame = Frame::rgb(2, 2, vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255]).unwrap();
         let mirrored = frame.mirror_horizontal();
         // 翻转后：
         //   行 0: 绿 红

@@ -23,13 +23,13 @@
 
 use bevy::prelude::*;
 
+use super::i18n::{I18nTable, LocalizedText};
 use crate::app_shell::settings_view::CalibrateButton;
 use crate::app_shell::AppView;
 use crate::domain::calibration::CALIBRATION_DURATION;
-use super::i18n::{I18nTable, LocalizedText};
-use crate::AppFont;
 use crate::monitoring::events::MonitoringEvent;
 use crate::monitoring::pipeline::channel::WorkerCommand;
+use crate::AppFont;
 use crate::WorkerHandle;
 
 /// 校准成功后自动返回 Settings 的延时（秒）。
@@ -201,28 +201,27 @@ pub(crate) fn setup_calibration_view(mut commands: Commands, app_font: Res<AppFo
             ));
 
             // 按钮行：取消 / 返回设置
-            root
-                .spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    column_gap: Val::Px(12.0),
-                    ..default()
-                })
-                .with_children(|row| {
-                    spawn_button(
-                        row,
-                        &font,
-                        "calibration.cancel",
-                        CancelCalibButton,
-                        Color::srgb(0.4, 0.2, 0.2),
-                    );
-                    spawn_button(
-                        row,
-                        &font,
-                        "settings.back",
-                        BackButton,
-                        Color::srgb(0.2, 0.2, 0.24),
-                    );
-                });
+            root.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(12.0),
+                ..default()
+            })
+            .with_children(|row| {
+                spawn_button(
+                    row,
+                    &font,
+                    "calibration.cancel",
+                    CancelCalibButton,
+                    Color::srgb(0.4, 0.2, 0.2),
+                );
+                spawn_button(
+                    row,
+                    &font,
+                    "settings.back",
+                    BackButton,
+                    Color::srgb(0.2, 0.2, 0.24),
+                );
+            });
         });
 }
 
@@ -272,7 +271,7 @@ pub(crate) fn handle_calibrate(
 
     // 通知 worker 进入校准会话
     if let Some(worker) = &worker {
-        let _ = worker.0.0.send(WorkerCommand::StartCalibration);
+        let _ = worker.0 .0.send(WorkerCommand::StartCalibration);
     }
 
     // 初始化校准视图状态
@@ -379,7 +378,11 @@ pub(crate) fn refresh_calibration_ui(
     mut samples_query: Query<&mut Text, (With<SamplesText>, Without<CountdownText>)>,
     mut pose_query: Query<
         &mut Text,
-        (With<LivePoseText>, Without<CountdownText>, Without<SamplesText>),
+        (
+            With<LivePoseText>,
+            Without<CountdownText>,
+            Without<SamplesText>,
+        ),
     >,
     mut message_query: Query<
         &mut Text,
@@ -460,7 +463,7 @@ pub(crate) fn handle_cancel_calibration(
         return;
     }
     if let Some(worker) = &worker {
-        let _ = worker.0.0.send(WorkerCommand::CancelCalibration);
+        let _ = worker.0 .0.send(WorkerCommand::CancelCalibration);
     }
     *state = CalibrationViewState::default();
     *app_view = AppView::Settings;

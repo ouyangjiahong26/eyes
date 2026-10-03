@@ -21,13 +21,13 @@ use bevy::image::{CompressedImageFormats, Image, ImageSampler, ImageType};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
+use super::i18n::{I18nTable, LocalizedText};
 use crate::app_shell::settings_draft::SettingsDraft;
 use crate::app_shell::settings_view::SettingsPanelState;
 use crate::app_shell::AppView;
-use super::i18n::{I18nTable, LocalizedText};
-use crate::AppFont;
 use crate::monitoring::camera::camera_enumerator;
 use crate::monitoring::events::MonitoringEvent;
+use crate::AppFont;
 
 // ── 资源 ───────────────────────────────────────────────────────
 
@@ -362,7 +362,10 @@ pub(crate) fn update_view_visibility(
     mut main_query: Query<&mut Visibility, With<MainViewRoot>>,
     mut settings_query: Query<
         &mut Visibility,
-        (With<crate::app_shell::settings_view::SettingsPanelRoot>, Without<MainViewRoot>),
+        (
+            With<crate::app_shell::settings_view::SettingsPanelRoot>,
+            Without<MainViewRoot>,
+        ),
     >,
 ) {
     if !app_view.is_changed() {

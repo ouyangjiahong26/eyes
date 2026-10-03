@@ -143,11 +143,8 @@ pub struct IMoniker {
 
 #[repr(C)]
 pub struct IMonikerVtbl {
-    pub query_interface: unsafe extern "system" fn(
-        *mut IMoniker,
-        *const GUID,
-        *mut *mut core::ffi::c_void,
-    ) -> i32,
+    pub query_interface:
+        unsafe extern "system" fn(*mut IMoniker, *const GUID, *mut *mut core::ffi::c_void) -> i32,
     pub add_ref: unsafe extern "system" fn(*mut IMoniker) -> u32,
     pub release: unsafe extern "system" fn(*mut IMoniker) -> u32,
     // IPersistStream → IPersist::GetClassID

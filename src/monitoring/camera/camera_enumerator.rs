@@ -16,11 +16,12 @@ pub struct CameraDevice {
 /// 返回 `(index, name)` 列表，index 与 OpenCV `VideoCapture::new(index, ...)` 一致。
 #[cfg(target_os = "windows")]
 pub fn list_cameras() -> Result<Vec<CameraDevice>, String> {
-    use windows_sys::Win32::System::Com::{CoInitializeEx, CoUninitialize};
     use windows_sys::core::HRESULT;
+    use windows_sys::Win32::System::Com::{CoInitializeEx, CoUninitialize};
 
-    let hr: HRESULT =
-        unsafe { CoInitializeEx(core::ptr::null_mut(), 0 /* COINIT_MULTITHREADED */) };
+    let hr: HRESULT = unsafe {
+        CoInitializeEx(core::ptr::null_mut(), 0 /* COINIT_MULTITHREADED */)
+    };
     if hr != 0 && hr != 1 {
         return Err(format!("CoInitializeEx 失败: 0x{:08X}", hr));
     }
@@ -67,10 +68,7 @@ unsafe fn enumerate_video_devices() -> Result<Vec<CameraDevice>, String> {
     ((*dev_enum.vtable).release)(dev_enum);
 
     if hr != 0 || enum_ptr.is_null() {
-        return Err(format!(
-            "CreateClassEnumerator 失败: 0x{:08X}",
-            hr
-        ));
+        return Err(format!("CreateClassEnumerator 失败: 0x{:08X}", hr));
     }
 
     let mut cameras = Vec::new();

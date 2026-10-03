@@ -128,14 +128,20 @@ fn jacobi_rotate(s: &mut [[f64; 3]; 3], v: &mut [[f64; 3]; 3], p: usize, q: usiz
 
 /// 从对称矩阵的特征值计算奇异值（sqrt of max(eigenvalue, 0)）。
 fn eigenvalues_to_sigma(s: &[[f64; 3]; 3]) -> [f64; 3] {
-    [s[0][0].max(0.0).sqrt(), s[1][1].max(0.0).sqrt(), s[2][2].max(0.0).sqrt()]
+    [
+        s[0][0].max(0.0).sqrt(),
+        s[1][1].max(0.0).sqrt(),
+        s[2][2].max(0.0).sqrt(),
+    ]
 }
 
 /// 按奇异值降序排列 sigma 和对应的 V 列。
 fn sort_descending(sigma: &mut [f64; 3], v: &mut [[f64; 3]; 3]) {
     let mut indices = [0, 1, 2];
     indices.sort_by(|&i, &j| {
-        sigma[j].partial_cmp(&sigma[i]).unwrap_or(std::cmp::Ordering::Equal)
+        sigma[j]
+            .partial_cmp(&sigma[i])
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
     let orig_sigma = *sigma;
     let orig_v = *v;
@@ -218,7 +224,11 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert!((recon[i][j] - expected).abs() < 0.01, "recon[{i}][{j}]={}", recon[i][j]);
+                assert!(
+                    (recon[i][j] - expected).abs() < 0.01,
+                    "recon[{i}][{j}]={}",
+                    recon[i][j]
+                );
             }
         }
     }

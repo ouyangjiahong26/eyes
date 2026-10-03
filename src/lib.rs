@@ -17,29 +17,27 @@ use std::sync::{mpsc, Arc, Mutex};
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
-use app_shell::main_view::{
-    forward_monitoring_events, handle_settings_button_click, refresh_ui_text,
-    setup_main_view, update_pose_state, update_preview_texture, update_view_visibility,
-    MonitoringReceiver,
-};
 use app_shell::calibration_view::{
     handle_back_to_settings, handle_calibrate, handle_calibration_complete,
     handle_calibration_failed, handle_cancel_calibration, refresh_calibration_ui,
     setup_calibration_view, track_calibration_pose, update_calibration_countdown,
     update_calibration_view_visibility, CalibrationViewState,
 };
-use app_shell::settings_view::{
-    dispatch_button_click, handle_advanced_toggle, handle_autostart_toggle,
-    handle_camera_nav, handle_cancel, handle_lang_nav, handle_save, handle_slider_click,
-    handle_sound_toggle, refresh_settings_ui, setup_settings_panel, CancelSettings, SaveSettings,
-    SettingsPanelState,
+use app_shell::main_view::{
+    forward_monitoring_events, handle_settings_button_click, refresh_ui_text, setup_main_view,
+    update_pose_state, update_preview_texture, update_view_visibility, MonitoringReceiver,
 };
 use app_shell::notification::{
     check_notification_capability, update_system_notification_system, SnoozeResource,
 };
+use app_shell::settings_view::{
+    dispatch_button_click, handle_advanced_toggle, handle_autostart_toggle, handle_camera_nav,
+    handle_cancel, handle_lang_nav, handle_save, handle_slider_click, handle_sound_toggle,
+    refresh_settings_ui, setup_settings_panel, CancelSettings, SaveSettings, SettingsPanelState,
+};
 use app_shell::tray::{spawn_tray, TrayMenuCommand};
-use domain::config::ConfigState;
 use app_shell::ui::i18n::{refresh_localized_text, I18nTable};
+use domain::config::ConfigState;
 use monitoring::events::MonitoringEvent;
 use monitoring::pipeline::channel::{WorkerCommand, WorkerSender};
 use worker_setup::spawn_worker;
@@ -73,22 +71,20 @@ pub fn run() {
     let language = config_state.get().language.clone();
 
     App::new()
-        .add_plugins(
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Eyes".into(),
-                    resolution: WindowResolution::new(800.0, 600.0),
-                    ..default()
-                }),
-                // 禁用默认的 `close_when_requested` 系统：它会把窗口标记为
-                // `ClosingWindow` → 下一帧 despawn → `exit_on_all_closed` 触发
-                // AppExit 直接退出。禁用后，`WindowCloseRequested` 事件**只**
-                // 发事件不关闭窗口，由 `intercept_window_close_to_tray` 拦截
-                // 设 `Window.visible = false` 隐藏到托盘，entity 仍存活。
-                close_when_requested: false,
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Eyes".into(),
+                resolution: WindowResolution::new(800.0, 600.0),
                 ..default()
             }),
-        )
+            // 禁用默认的 `close_when_requested` 系统：它会把窗口标记为
+            // `ClosingWindow` → 下一帧 despawn → `exit_on_all_closed` 触发
+            // AppExit 直接退出。禁用后，`WindowCloseRequested` 事件**只**
+            // 发事件不关闭窗口，由 `intercept_window_close_to_tray` 拦截
+            // 设 `Window.visible = false` 隐藏到托盘，entity 仍存活。
+            close_when_requested: false,
+            ..default()
+        }))
         // 声音提醒：bevy_kira_audio 取代 bevy 自带音频插件（见 Cargo.toml 中已禁用 bevy_audio）。
         .add_plugins(bevy_kira_audio::AudioPlugin)
         .insert_resource(AppResources { config_state })
@@ -155,11 +151,7 @@ pub fn run() {
         .run();
 }
 
-fn setup(
-    mut commands: Commands,
-    resources: Res<AppResources>,
-    mut fonts: ResMut<Assets<Font>>,
-) {
+fn setup(mut commands: Commands, resources: Res<AppResources>, mut fonts: ResMut<Assets<Font>>) {
     // 2D 相机：渲染 UI 所需。
     commands.spawn(Camera2d);
 
@@ -210,7 +202,10 @@ fn load_system_cjk_font(fonts: &mut Assets<Font>) -> Handle<Font> {
     const CANDIDATES: &[&str] = &[];
 
     for path in CANDIDATES {
-        match std::fs::read(path).and_then(|b| Font::try_from_bytes(b).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))) {
+        match std::fs::read(path).and_then(|b| {
+            Font::try_from_bytes(b)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))
+        }) {
             Ok(font) => return fonts.add(font),
             Err(e) => bevy::log::warn!("无法加载字体 {}：{}", path, e),
         }
@@ -249,7 +244,7 @@ fn handle_tray_commands(
         match cmd {
             TrayMenuCommand::Quit => {
                 // 先通知后台 worker 停止，再触发 Bevy 退出。
-                let _ = worker.0.0.send(WorkerCommand::Stop);
+                let _ = worker.0 .0.send(WorkerCommand::Stop);
                 exit.send(AppExit::Success);
             }
             TrayMenuCommand::Open => {
@@ -259,19 +254,19 @@ fn handle_tray_commands(
                 }
             }
             TrayMenuCommand::Pause30Min => {
-                let _ = worker.0.0.send(WorkerCommand::Snooze(30.0 * 60.0));
+                let _ = worker.0 .0.send(WorkerCommand::Snooze(30.0 * 60.0));
                 snooze.paused = true;
             }
             TrayMenuCommand::Pause1Hour => {
-                let _ = worker.0.0.send(WorkerCommand::Snooze(60.0 * 60.0));
+                let _ = worker.0 .0.send(WorkerCommand::Snooze(60.0 * 60.0));
                 snooze.paused = true;
             }
             TrayMenuCommand::PauseUntilRestart => {
-                let _ = worker.0.0.send(WorkerCommand::Snooze(f64::INFINITY));
+                let _ = worker.0 .0.send(WorkerCommand::Snooze(f64::INFINITY));
                 snooze.paused = true;
             }
             TrayMenuCommand::Resume => {
-                let _ = worker.0.0.send(WorkerCommand::Resume);
+                let _ = worker.0 .0.send(WorkerCommand::Resume);
                 snooze.paused = false;
             }
         }

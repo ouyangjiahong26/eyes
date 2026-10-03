@@ -13,5 +13,8 @@ fn config_store_uses_eyes_subdirectory() {
         dir.ends_with("eyes"),
         "application directory should end with 'eyes': {dir:?}"
     );
-    assert!(dir.join("config.yaml").exists(), "config.yaml should be under eyes dir");
+    assert!(
+        dir.join("config.yaml").exists(),
+        "config.yaml should be under eyes dir"
+    );
 }

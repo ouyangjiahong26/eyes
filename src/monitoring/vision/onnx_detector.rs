@@ -7,9 +7,9 @@
 //!
 //! 模型输出 12 个张量（3 个尺度 × cls/obj/bbox/kps），anchor-free 解码。
 
+use super::solve_pnp;
 use crate::domain::classifier::HeadPose;
 use crate::monitoring::pipeline::detector::Detector;
-use super::solve_pnp;
 
 // ── 常量 ───────────────────────────────────────────────────────
 
@@ -208,7 +208,11 @@ fn preprocess_rgb(rgb: &[u8], width: u32, height: u32) -> Vec<f32> {
 /// 从图像尺寸估算相机内参矩阵。假设主点在中心，焦距 = max(w, h)。
 fn estimate_camera_matrix(width: u32, height: u32) -> [[f64; 3]; 3] {
     let f = width.max(height) as f64;
-    [[f, 0.0, width as f64 / 2.0], [0.0, f, height as f64 / 2.0], [0.0, 0.0, 1.0]]
+    [
+        [f, 0.0, width as f64 / 2.0],
+        [0.0, f, height as f64 / 2.0],
+        [0.0, 0.0, 1.0],
+    ]
 }
 
 // ── 模型装配 ───────────────────────────────────────────────────
@@ -224,7 +228,10 @@ pub fn load_onnx_detector() -> Option<Box<dyn crate::monitoring::pipeline::detec
     match YuNetDetector::new(path.to_str().unwrap_or("")) {
         Ok(detector) => Some(Box::new(detector) as Box<dyn Detector>),
         Err(e) => {
-            eprintln!("[eyes] 加载 ONNX 检测器失败（路径={}）：{e}", path.display());
+            eprintln!(
+                "[eyes] 加载 ONNX 检测器失败（路径={}）：{e}",
+                path.display()
+            );
             None
         }
     }
@@ -248,7 +255,13 @@ fn resolve_model_path() -> Option<std::path::PathBuf> {
 
     if let Some(dir) = install_dir() {
         candidates.push(dir.join("models").join(MODEL_NAME));
-        if let Ok(dev_path) = dir.join("..").join("..").join("models").join(MODEL_NAME).canonicalize() {
+        if let Ok(dev_path) = dir
+            .join("..")
+            .join("..")
+            .join("models")
+            .join(MODEL_NAME)
+            .canonicalize()
+        {
             candidates.push(dev_path);
         }
     }

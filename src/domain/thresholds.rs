@@ -52,9 +52,18 @@ mod tests {
     #[test]
     fn default_matches_defaults_constants() {
         let t = TimingThresholds::default();
-        assert_eq!(t.off_axis_streak_threshold_seconds, defaults::OFF_AXIS_STREAK_THRESHOLD);
-        assert_eq!(t.off_axis_repeat_interval_seconds, defaults::OFF_AXIS_REPEAT_INTERVAL);
-        assert_eq!(t.off_axis_severe_threshold_seconds, defaults::OFF_AXIS_SEVERE_THRESHOLD);
+        assert_eq!(
+            t.off_axis_streak_threshold_seconds,
+            defaults::OFF_AXIS_STREAK_THRESHOLD
+        );
+        assert_eq!(
+            t.off_axis_repeat_interval_seconds,
+            defaults::OFF_AXIS_REPEAT_INTERVAL
+        );
+        assert_eq!(
+            t.off_axis_severe_threshold_seconds,
+            defaults::OFF_AXIS_SEVERE_THRESHOLD
+        );
         assert_eq!(t.facing_threshold_seconds, defaults::FACING_THRESHOLD);
         assert_eq!(t.eyerest_threshold_seconds, defaults::EYEREST_THRESHOLD);
     }

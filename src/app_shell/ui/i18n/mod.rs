@@ -33,10 +33,7 @@ impl I18nTable {
 
     /// 查找 key 对应的翻译；未命中时返回 key 本身。
     pub fn t<'a>(&'a self, key: &'a str) -> &'a str {
-        self.entries
-            .get(key)
-            .map(|s| s.as_str())
-            .unwrap_or(key)
+        self.entries.get(key).map(|s| s.as_str()).unwrap_or(key)
     }
 }
 

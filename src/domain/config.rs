@@ -283,10 +283,12 @@ neutral_pitch: -1.5
         let dir = tempfile::tempdir().unwrap();
         let state = ConfigState::new(ConfigStore::new(dir.path())).unwrap();
 
-        state.update(|cfg| {
-            cfg.camera_index = 3;
-            cfg.sound_enabled = false;
-        }).unwrap();
+        state
+            .update(|cfg| {
+                cfg.camera_index = 3;
+                cfg.sound_enabled = false;
+            })
+            .unwrap();
 
         let config = state.get();
         assert_eq!(config.camera_index, 3);
@@ -298,5 +300,4 @@ neutral_pitch: -1.5
         let loaded = store.load().unwrap();
         assert_eq!(loaded.camera_index, 3);
     }
-
 }

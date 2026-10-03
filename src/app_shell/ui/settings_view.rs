@@ -12,7 +12,7 @@
 use bevy::prelude::*;
 
 use super::i18n::LocalizedText;
-use super::settings_draft::{SettingsDraft, draft_to_config, snap};
+use super::settings_draft::{draft_to_config, snap, SettingsDraft};
 use crate::monitoring::pipeline::channel::WorkerCommand;
 use crate::AppFont;
 
@@ -184,7 +184,12 @@ pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont
             // ── yaw 回滞 ─────────────────────────────────────────
             spawn_slider_row(panel, &font, SliderKind::YawHyst, "settings.yaw_hysteresis");
             // ── pitch 回滞 ───────────────────────────────────────
-            spawn_slider_row(panel, &font, SliderKind::PitchHyst, "settings.pitch_hysteresis");
+            spawn_slider_row(
+                panel,
+                &font,
+                SliderKind::PitchHyst,
+                "settings.pitch_hysteresis",
+            );
 
             // ── 校准按钮 ─────────────────────────────────────────
             panel
@@ -203,10 +208,24 @@ pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont
                 });
 
             // ── 摄像头选择 ───────────────────────────────────────
-            spawn_nav_row(panel, &font, "settings.camera_index", CameraLabel, CameraNav::Prev, CameraNav::Next);
+            spawn_nav_row(
+                panel,
+                &font,
+                "settings.camera_index",
+                CameraLabel,
+                CameraNav::Prev,
+                CameraNav::Next,
+            );
 
             // ── 语言选择 ─────────────────────────────────────────
-            spawn_nav_row(panel, &font, "settings.language", LangLabel, LangNav::Prev, LangNav::Next);
+            spawn_nav_row(
+                panel,
+                &font,
+                "settings.language",
+                LangLabel,
+                LangNav::Prev,
+                LangNav::Next,
+            );
 
             // ── 声音开关 ─────────────────────────────────────────
             panel
@@ -220,7 +239,11 @@ pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont
                 .with_children(|row| {
                     row.spawn((
                         Text::new("Sound"),
-                        TextFont { font: font.clone(), font_size: 16.0, ..default() },
+                        TextFont {
+                            font: font.clone(),
+                            font_size: 16.0,
+                            ..default()
+                        },
                         TextColor(Color::srgb(0.8, 0.8, 0.8)),
                         LocalizedText("settings.sound_enabled"),
                     ));
@@ -240,7 +263,11 @@ pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont
                 .with_children(|row| {
                     row.spawn((
                         Text::new("Autostart"),
-                        TextFont { font: font.clone(), font_size: 16.0, ..default() },
+                        TextFont {
+                            font: font.clone(),
+                            font_size: 16.0,
+                            ..default()
+                        },
                         TextColor(Color::srgb(0.8, 0.8, 0.8)),
                         LocalizedText("settings.autostart_enabled"),
                     ));
@@ -265,7 +292,11 @@ pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont
                 ))
                 .with_child((
                     Text::new("Advanced"),
-                    TextFont { font: font.clone(), font_size: 15.0, ..default() },
+                    TextFont {
+                        font: font.clone(),
+                        font_size: 15.0,
+                        ..default()
+                    },
                     TextColor(Color::srgb(0.7, 0.7, 0.7)),
                     LocalizedText("settings.advanced"),
                 ));
@@ -286,7 +317,12 @@ pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont
                     spawn_slider_row(adv, &font, SliderKind::Repeat, "settings.repeat_interval");
                     spawn_slider_row(adv, &font, SliderKind::Severe, "settings.severe_threshold");
                     spawn_slider_row(adv, &font, SliderKind::Facing, "settings.facing_threshold");
-                    spawn_slider_row(adv, &font, SliderKind::Eyerest, "settings.eyerest_threshold");
+                    spawn_slider_row(
+                        adv,
+                        &font,
+                        SliderKind::Eyerest,
+                        "settings.eyerest_threshold",
+                    );
                 });
 
             // ── 底部按钮 ─────────────────────────────────────────
@@ -298,8 +334,20 @@ pub(crate) fn setup_settings_panel(mut commands: Commands, app_font: Res<AppFont
                     ..default()
                 })
                 .with_children(|row| {
-                    spawn_button(row, &font, "settings.save", SaveButton, Color::srgb(0.2, 0.4, 0.2));
-                    spawn_button(row, &font, "settings.cancel", CancelButton, Color::srgb(0.4, 0.2, 0.2));
+                    spawn_button(
+                        row,
+                        &font,
+                        "settings.save",
+                        SaveButton,
+                        Color::srgb(0.2, 0.4, 0.2),
+                    );
+                    spawn_button(
+                        row,
+                        &font,
+                        "settings.cancel",
+                        CancelButton,
+                        Color::srgb(0.4, 0.2, 0.2),
+                    );
                 });
         });
 }
@@ -328,13 +376,21 @@ fn spawn_slider_row(
             .with_children(|label_row| {
                 label_row.spawn((
                     Text::new(label_key),
-                    TextFont { font: font.clone(), font_size: 15.0, ..default() },
+                    TextFont {
+                        font: font.clone(),
+                        font_size: 15.0,
+                        ..default()
+                    },
                     TextColor(Color::srgb(0.8, 0.8, 0.8)),
                     LocalizedText(label_key),
                 ));
                 label_row.spawn((
                     Text::new("—"),
-                    TextFont { font: font.clone(), font_size: 15.0, ..default() },
+                    TextFont {
+                        font: font.clone(),
+                        font_size: 15.0,
+                        ..default()
+                    },
                     TextColor(Color::srgb(0.9, 0.9, 0.9)),
                     SliderValueText(kind),
                 ));
@@ -385,7 +441,11 @@ fn spawn_nav_row(
         .with_children(|row| {
             row.spawn((
                 Text::new(label_key),
-                TextFont { font: font.clone(), font_size: 16.0, ..default() },
+                TextFont {
+                    font: font.clone(),
+                    font_size: 16.0,
+                    ..default()
+                },
                 TextColor(Color::srgb(0.8, 0.8, 0.8)),
                 LocalizedText(label_key),
             ));
@@ -400,7 +460,11 @@ fn spawn_nav_row(
                 spawn_nav_button(nav, font, "‹", prev);
                 nav.spawn((
                     Text::new("—"),
-                    TextFont { font: font.clone(), font_size: 15.0, ..default() },
+                    TextFont {
+                        font: font.clone(),
+                        font_size: 15.0,
+                        ..default()
+                    },
                     TextColor(Color::WHITE),
                     Node {
                         width: Val::Px(180.0),
@@ -432,7 +496,11 @@ fn spawn_nav_button(
         Interaction::default(),
         nav,
         Text::new(label),
-        TextFont { font: font.clone(), font_size: 18.0, ..default() },
+        TextFont {
+            font: font.clone(),
+            font_size: 18.0,
+            ..default()
+        },
         TextColor(Color::WHITE),
     ));
 }
@@ -457,7 +525,11 @@ fn spawn_button(
         ))
         .with_child((
             Text::new(label_key),
-            TextFont { font: font.clone(), font_size: 15.0, ..default() },
+            TextFont {
+                font: font.clone(),
+                font_size: 15.0,
+                ..default()
+            },
             TextColor(Color::WHITE),
             LocalizedText(label_key),
         ));
@@ -499,11 +571,17 @@ fn spawn_toggle_button(
 pub(crate) fn handle_slider_click(
     draft: Option<ResMut<SettingsDraft>>,
     query: Query<
-        (&Interaction, &bevy::ui::RelativeCursorPosition, &SliderTrack),
+        (
+            &Interaction,
+            &bevy::ui::RelativeCursorPosition,
+            &SliderTrack,
+        ),
         Changed<Interaction>,
     >,
 ) {
-    let Some(mut draft) = draft else { return; };
+    let Some(mut draft) = draft else {
+        return;
+    };
     for (interaction, rel_cursor, track) in &query {
         if *interaction != Interaction::Pressed {
             continue;
@@ -527,36 +605,32 @@ pub(crate) fn handle_slider_click(
                     snap(frac, HYSTERESIS_MIN, HYSTERESIS_MAX, HYSTERESIS_STEP);
             }
             SliderKind::Streak => {
-                draft.off_axis_streak_threshold =
-                    snap(frac, STREAK_MIN, STREAK_MAX, STREAK_STEP);
+                draft.off_axis_streak_threshold = snap(frac, STREAK_MIN, STREAK_MAX, STREAK_STEP);
             }
             SliderKind::Repeat => {
-                draft.off_axis_repeat_interval =
-                    snap(frac, REPEAT_MIN, REPEAT_MAX, REPEAT_STEP);
+                draft.off_axis_repeat_interval = snap(frac, REPEAT_MIN, REPEAT_MAX, REPEAT_STEP);
             }
             SliderKind::Severe => {
-                draft.off_axis_severe_threshold =
-                    snap(frac, SEVERE_MIN, SEVERE_MAX, SEVERE_STEP);
+                draft.off_axis_severe_threshold = snap(frac, SEVERE_MIN, SEVERE_MAX, SEVERE_STEP);
             }
             SliderKind::Facing => {
-                draft.facing_threshold =
-                    snap(frac, FACING_MIN, FACING_MAX, FACING_STEP);
+                draft.facing_threshold = snap(frac, FACING_MIN, FACING_MAX, FACING_STEP);
             }
             SliderKind::Eyerest => {
-                draft.eyerest_threshold =
-                    snap(frac, EYEREST_MIN, EYEREST_MAX, EYEREST_STEP);
+                draft.eyerest_threshold = snap(frac, EYEREST_MIN, EYEREST_MAX, EYEREST_STEP);
             }
         }
     }
 }
-
 
 /// 摄像头 Prev/Next 点击。
 pub(crate) fn handle_camera_nav(
     draft: Option<ResMut<SettingsDraft>>,
     query: Query<(&CameraNav, &Interaction), Changed<Interaction>>,
 ) {
-    let Some(mut draft) = draft else { return; };
+    let Some(mut draft) = draft else {
+        return;
+    };
     let count = draft.camera_list.len().max(1) as u32;
     for (nav, interaction) in &query {
         if *interaction != Interaction::Pressed {
@@ -578,7 +652,9 @@ pub(crate) fn handle_lang_nav(
     draft: Option<ResMut<SettingsDraft>>,
     query: Query<(&LangNav, &Interaction), Changed<Interaction>>,
 ) {
-    let Some(mut draft) = draft else { return; };
+    let Some(mut draft) = draft else {
+        return;
+    };
     let current = LANGUAGES
         .iter()
         .position(|(code, _)| *code == draft.language)
@@ -601,7 +677,9 @@ pub(crate) fn handle_sound_toggle(
     draft: Option<ResMut<SettingsDraft>>,
     query: Query<&Interaction, (With<SoundToggle>, Changed<Interaction>)>,
 ) {
-    let Some(mut draft) = draft else { return; };
+    let Some(mut draft) = draft else {
+        return;
+    };
     for interaction in &query {
         if *interaction == Interaction::Pressed {
             draft.sound_enabled = !draft.sound_enabled;
@@ -614,7 +692,9 @@ pub(crate) fn handle_autostart_toggle(
     draft: Option<ResMut<SettingsDraft>>,
     query: Query<&Interaction, (With<AutostartToggle>, Changed<Interaction>)>,
 ) {
-    let Some(mut draft) = draft else { return; };
+    let Some(mut draft) = draft else {
+        return;
+    };
     for interaction in &query {
         if *interaction == Interaction::Pressed {
             draft.autostart_enabled = !draft.autostart_enabled;
@@ -627,7 +707,9 @@ pub(crate) fn handle_advanced_toggle(
     draft: Option<ResMut<SettingsDraft>>,
     query: Query<&Interaction, (With<AdvancedToggleButton>, Changed<Interaction>)>,
 ) {
-    let Some(mut draft) = draft else { return; };
+    let Some(mut draft) = draft else {
+        return;
+    };
     for interaction in &query {
         if *interaction == Interaction::Pressed {
             draft.advanced_visible = !draft.advanced_visible;
@@ -656,7 +738,9 @@ pub(crate) fn refresh_settings_ui(
     >,
     mut advanced_section: Query<&mut Visibility, With<AdvancedSection>>,
 ) {
-    let Some(draft) = draft else { return; };
+    let Some(draft) = draft else {
+        return;
+    };
 
     if !draft.is_changed() {
         return;
@@ -682,27 +766,15 @@ pub(crate) fn refresh_settings_ui(
                 format!("{:.2}°", draft.pitch_hysteresis),
             ),
             SliderKind::Streak => (
-                pct(
-                    draft.off_axis_streak_threshold,
-                    STREAK_MIN,
-                    STREAK_MAX,
-                ),
+                pct(draft.off_axis_streak_threshold, STREAK_MIN, STREAK_MAX),
                 format!("{:.1}s", draft.off_axis_streak_threshold),
             ),
             SliderKind::Repeat => (
-                pct(
-                    draft.off_axis_repeat_interval,
-                    REPEAT_MIN,
-                    REPEAT_MAX,
-                ),
+                pct(draft.off_axis_repeat_interval, REPEAT_MIN, REPEAT_MAX),
                 format!("{:.0}s", draft.off_axis_repeat_interval),
             ),
             SliderKind::Severe => (
-                pct(
-                    draft.off_axis_severe_threshold,
-                    SEVERE_MIN,
-                    SEVERE_MAX,
-                ),
+                pct(draft.off_axis_severe_threshold, SEVERE_MIN, SEVERE_MAX),
                 format!("{:.0}s", draft.off_axis_severe_threshold),
             ),
             SliderKind::Facing => (
@@ -776,7 +848,6 @@ pub(crate) fn refresh_settings_ui(
     }
 }
 
-
 fn pct(value: f64, min: f64, max: f64) -> f64 {
     ((value - min) / (max - min)).clamp(0.0, 1.0)
 }
@@ -808,8 +879,12 @@ pub(crate) fn handle_save(
         return;
     }
 
-    let Some(draft) = draft else { return; };
-    let Some(resources) = resources else { return; };
+    let Some(draft) = draft else {
+        return;
+    };
+    let Some(resources) = resources else {
+        return;
+    };
 
     let base = resources.config_state.get();
     let new_config = draft_to_config(&draft, &base);
@@ -821,7 +896,10 @@ pub(crate) fn handle_save(
 
     // 通知 worker 用新阈值 / 新摄像头
     if let Some(worker) = &worker {
-        let _ = worker.0.0.send(WorkerCommand::SetConfig(Box::new(new_config.clone())));
+        let _ = worker
+            .0
+             .0
+            .send(WorkerCommand::SetConfig(Box::new(new_config.clone())));
     }
 
     // 语言切换 → 刷新 i18n 资源
