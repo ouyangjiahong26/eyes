@@ -27,9 +27,14 @@ impl FrameSource for FakeCamera {
 #[test]
 fn worker_tick_returns_preview_frame_from_camera_source() {
     let frame = Frame::rgb(2, 1, vec![255, 0, 0, 0, 255, 0]).unwrap();
-    let mut worker = MonitoringWorker::new(FakeCamera {
-        frames: vec![frame],
-    }, None, Default::default(), default_config_state());
+    let mut worker = MonitoringWorker::new(
+        FakeCamera {
+            frames: vec![frame],
+        },
+        None,
+        Default::default(),
+        default_config_state(),
+    );
 
     let output = worker.tick(0.1);
 
@@ -55,7 +60,12 @@ fn worker_tick_reports_camera_unavailable_without_crashing() {
         }
     }
 
-    let mut worker = MonitoringWorker::new(UnavailableCamera, None, Default::default(), default_config_state());
+    let mut worker = MonitoringWorker::new(
+        UnavailableCamera,
+        None,
+        Default::default(),
+        default_config_state(),
+    );
     let output = worker.tick(0.1);
 
     assert!(!output.camera_ok);
@@ -79,7 +89,12 @@ fn worker_reports_camera_unavailable_when_read_fails_after_success() {
         }
     }
 
-    let mut worker = MonitoringWorker::new(FailingAfterOne { remaining: 1 }, None, Default::default(), default_config_state());
+    let mut worker = MonitoringWorker::new(
+        FailingAfterOne { remaining: 1 },
+        None,
+        Default::default(),
+        default_config_state(),
+    );
 
     let output = worker.tick(0.1);
     assert!(output.camera_ok);
@@ -94,11 +109,7 @@ fn worker_reports_camera_unavailable_when_read_fails_after_success() {
 /// 从 data:image/png;base64,... 解码出 RGB 字节。
 fn decode_preview_rgb(data_url: &str) -> Vec<u8> {
     let b64 = data_url.strip_prefix("data:image/png;base64,").unwrap();
-    let bytes = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        b64,
-    )
-    .unwrap();
+    let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64).unwrap();
     let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
     let mut reader = decoder.read_info().unwrap();
     let mut buf = vec![0u8; reader.output_buffer_size()];
@@ -128,12 +139,17 @@ fn preview_is_mirrored_relative_to_detection_frame() {
     let captured = Arc::new(Mutex::new(Vec::new()));
     let detector = SpyDetector {
         captured_rgb: Arc::clone(&captured),
-        pose: Some(HeadPose { yaw: 0.0, pitch: 0.0 }),
+        pose: Some(HeadPose {
+            yaw: 0.0,
+            pitch: 0.0,
+        }),
     };
     let det: Option<Box<dyn Detector>> = Some(Box::new(detector));
 
     let mut worker = MonitoringWorker::new(
-        FakeCamera { frames: vec![frame] },
+        FakeCamera {
+            frames: vec![frame],
+        },
         det,
         Default::default(),
         default_config_state(),
@@ -152,7 +168,11 @@ fn preview_is_mirrored_relative_to_detection_frame() {
     // detector 收到的应为原帧：左红 右绿
     let det_rgb = captured.lock().unwrap();
     assert_eq!(&det_rgb[..3], &[255, 0, 0], "detector 左像素应为红（原帧）");
-    assert_eq!(&det_rgb[3..6], &[0, 255, 0], "detector 右像素应为绿（原帧）");
+    assert_eq!(
+        &det_rgb[3..6],
+        &[0, 255, 0],
+        "detector 右像素应为绿（原帧）"
+    );
 }
 
 #[test]
@@ -161,7 +181,9 @@ fn original_frame_rgb_not_mutated_by_tick() {
     let original_rgb = frame.rgb.clone();
 
     let mut worker = MonitoringWorker::new(
-        FakeCamera { frames: vec![frame.clone()] },
+        FakeCamera {
+            frames: vec![frame.clone()],
+        },
         None,
         Default::default(),
         default_config_state(),

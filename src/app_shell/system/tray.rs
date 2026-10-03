@@ -69,28 +69,26 @@ fn run_tray_thread(tx: Sender<TrayMenuCommand>) {
     let tx_pause60 = tx.clone();
     let tx_pause_inf = tx.clone();
     let tx_resume = tx.clone();
-    MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
-        match event.id().as_ref() {
-            MENU_SHOW_ID => {
-                let _ = tx_open.send(TrayMenuCommand::Open);
-            }
-            MENU_PAUSE_30_ID => {
-                let _ = tx_pause30.send(TrayMenuCommand::Pause30Min);
-            }
-            MENU_PAUSE_60_ID => {
-                let _ = tx_pause60.send(TrayMenuCommand::Pause1Hour);
-            }
-            MENU_PAUSE_INDEFINITE_ID => {
-                let _ = tx_pause_inf.send(TrayMenuCommand::PauseUntilRestart);
-            }
-            MENU_RESUME_ID => {
-                let _ = tx_resume.send(TrayMenuCommand::Resume);
-            }
-            MENU_QUIT_ID => {
-                let _ = tx_quit.send(TrayMenuCommand::Quit);
-            }
-            _ => {}
+    MenuEvent::set_event_handler(Some(move |event: MenuEvent| match event.id().as_ref() {
+        MENU_SHOW_ID => {
+            let _ = tx_open.send(TrayMenuCommand::Open);
         }
+        MENU_PAUSE_30_ID => {
+            let _ = tx_pause30.send(TrayMenuCommand::Pause30Min);
+        }
+        MENU_PAUSE_60_ID => {
+            let _ = tx_pause60.send(TrayMenuCommand::Pause1Hour);
+        }
+        MENU_PAUSE_INDEFINITE_ID => {
+            let _ = tx_pause_inf.send(TrayMenuCommand::PauseUntilRestart);
+        }
+        MENU_RESUME_ID => {
+            let _ = tx_resume.send(TrayMenuCommand::Resume);
+        }
+        MENU_QUIT_ID => {
+            let _ = tx_quit.send(TrayMenuCommand::Quit);
+        }
+        _ => {}
     }));
 
     let menu = build_menu();
@@ -127,12 +125,8 @@ fn build_menu() -> Menu {
     let show = MenuItem::with_id(MENU_SHOW_ID, "Open", true, None);
     let pause_30 = MenuItem::with_id(MENU_PAUSE_30_ID, "Pause 30 min", true, None);
     let pause_60 = MenuItem::with_id(MENU_PAUSE_60_ID, "Pause 1 hour", true, None);
-    let pause_indef = MenuItem::with_id(
-        MENU_PAUSE_INDEFINITE_ID,
-        "Pause until restart",
-        true,
-        None,
-    );
+    let pause_indef =
+        MenuItem::with_id(MENU_PAUSE_INDEFINITE_ID, "Pause until restart", true, None);
     let resume = MenuItem::with_id(MENU_RESUME_ID, "Resume", true, None);
     let quit = MenuItem::with_id(MENU_QUIT_ID, "Quit", true, None);
     let menu = Menu::new();

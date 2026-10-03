@@ -8,14 +8,18 @@ use crate::monitoring::preview::PreviewFrame;
 /// 监控 worker 向外部发射的事件。
 #[derive(Debug, Clone, Event)]
 pub enum MonitoringEvent {
-    CameraStateChanged { state: String },
+    CameraStateChanged {
+        state: String,
+    },
     PoseUpdated {
         yaw: Option<f64>,
         pitch: Option<f64>,
         pose_state: String,
     },
     PreviewFrame(PreviewFrame),
-    SoundAlert { alert_type: String },
+    SoundAlert {
+        alert_type: String,
+    },
     WarningLevelChanged {
         level: String,
         direction: Option<String>,

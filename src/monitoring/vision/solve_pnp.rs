@@ -69,10 +69,34 @@ fn build_dlt_matrix(
         let v = (points_2d[i][1] - cy) / fy;
         let r0 = 2 * i;
         let r1 = r0 + 1;
-        a[r0 * 12..r0 * 12 + 12]
-            .copy_from_slice(&[x, y, z, 1.0, 0.0, 0.0, 0.0, 0.0, -u * x, -u * y, -u * z, -u]);
-        a[r1 * 12..r1 * 12 + 12]
-            .copy_from_slice(&[0.0, 0.0, 0.0, 0.0, x, y, z, 1.0, -v * x, -v * y, -v * z, -v]);
+        a[r0 * 12..r0 * 12 + 12].copy_from_slice(&[
+            x,
+            y,
+            z,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            -u * x,
+            -u * y,
+            -u * z,
+            -u,
+        ]);
+        a[r1 * 12..r1 * 12 + 12].copy_from_slice(&[
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            x,
+            y,
+            z,
+            1.0,
+            -v * x,
+            -v * y,
+            -v * z,
+            -v,
+        ]);
     }
     a
 }
@@ -222,22 +246,26 @@ mod tests {
         eprintln!("pitch    (A)atan2_yaw 漂移   (B)asin_yaw 漂移");
         for pitch_real_deg in [0.0_f64, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0] {
             let pitch_real = pitch_real_deg.to_radians();
-            let cy = yaw_real.cos(); let sy = yaw_real.sin();
-            let cp = pitch_real.cos(); let sp = pitch_real.sin();
+            let cy = yaw_real.cos();
+            let sy = yaw_real.sin();
+            let cp = pitch_real.cos();
+            let sp = pitch_real.sin();
             let r_true = [
-                [cy,      0.0,  sy],
-                [sp*sy,   cp,   -sp*cy],
-                [-cp*sy,  sp,   cp*cy],
+                [cy, 0.0, sy],
+                [sp * sy, cp, -sp * cy],
+                [-cp * sy, sp, cp * cy],
             ];
             let tz = 500.0;
-            let fx = cam[0][0]; let fy = cam[1][1];
-            let cx = cam[0][2]; let cy_cam = cam[1][2];
+            let fx = cam[0][0];
+            let fy = cam[1][1];
+            let cx = cam[0][2];
+            let cy_cam = cam[1][2];
             let pts_2d: [[f64; 2]; 6] = std::array::from_fn(|i| {
                 let [x, y, z] = MODEL_3D[i];
-                let rx = r_true[0][0]*x + r_true[0][1]*y + r_true[0][2]*z;
-                let ry = r_true[1][0]*x + r_true[1][1]*y + r_true[1][2]*z;
-                let rz = r_true[2][0]*x + r_true[2][1]*y + r_true[2][2]*z;
-                [fx*rx/(rz+tz) + cx, fy*ry/(rz+tz) + cy_cam]
+                let rx = r_true[0][0] * x + r_true[0][1] * y + r_true[0][2] * z;
+                let ry = r_true[1][0] * x + r_true[1][1] * y + r_true[1][2] * z;
+                let rz = r_true[2][0] * x + r_true[2][1] * y + r_true[2][2] * z;
+                [fx * rx / (rz + tz) + cx, fy * ry / (rz + tz) + cy_cam]
             });
             let r = solve_pnp(&pts_2d, &MODEL_3D, &cam).unwrap();
             // (A) 旧 atan2
@@ -246,10 +274,14 @@ mod tests {
             let pitch_b = (-r[1][2]).clamp(-1.0, 1.0).asin();
             let cp_b = pitch_b.cos();
             // 扣除 pitch 后用 R[0][2]/cos(pitch), R[2][2]/cos(pitch) 估 yaw
-            let yaw_b = (r[0][2]/cp_b).atan2(r[2][2]/cp_b).to_degrees();
+            let yaw_b = (r[0][2] / cp_b).atan2(r[2][2] / cp_b).to_degrees();
             eprintln!(
                 "{:>4.0}°   {:>7.3}° {:+5.2}°      {:>7.3}° {:+5.2}°",
-                pitch_real_deg, yaw_a, yaw_a - 10.0, yaw_b, yaw_b - 10.0
+                pitch_real_deg,
+                yaw_a,
+                yaw_a - 10.0,
+                yaw_b,
+                yaw_b - 10.0
             );
         }
     }
@@ -269,23 +301,27 @@ mod tests {
         for pitch_real_deg in [0.0_f64, 10.0, 20.0, 30.0, 40.0] {
             let pitch_real = pitch_real_deg.to_radians();
             // 构造 R = R_y(yaw) * R_x(pitch)
-            let cy = yaw_real.cos(); let sy = yaw_real.sin();
-            let cp = pitch_real.cos(); let sp = pitch_real.sin();
+            let cy = yaw_real.cos();
+            let sy = yaw_real.sin();
+            let cp = pitch_real.cos();
+            let sp = pitch_real.sin();
             let r_true = [
-                [cy,      0.0,  sy],
-                [sp*sy,   cp,   -sp*cy],
-                [-cp*sy,  sp,   cp*cy],
+                [cy, 0.0, sy],
+                [sp * sy, cp, -sp * cy],
+                [-cp * sy, sp, cp * cy],
             ];
             // 投影 MODEL_3D 6 个点到 2D
             let tz = 500.0;
-            let fx = cam[0][0]; let fy = cam[1][1];
-            let cx = cam[0][2]; let cy_cam = cam[1][2];
+            let fx = cam[0][0];
+            let fy = cam[1][1];
+            let cx = cam[0][2];
+            let cy_cam = cam[1][2];
             let pts_2d: [[f64; 2]; 6] = std::array::from_fn(|i| {
                 let [x, y, z] = MODEL_3D[i];
-                let rx = r_true[0][0]*x + r_true[0][1]*y + r_true[0][2]*z;
-                let ry = r_true[1][0]*x + r_true[1][1]*y + r_true[1][2]*z;
-                let rz = r_true[2][0]*x + r_true[2][1]*y + r_true[2][2]*z;
-                [fx*rx/(rz+tz) + cx, fy*ry/(rz+tz) + cy_cam]
+                let rx = r_true[0][0] * x + r_true[0][1] * y + r_true[0][2] * z;
+                let ry = r_true[1][0] * x + r_true[1][1] * y + r_true[1][2] * z;
+                let rz = r_true[2][0] * x + r_true[2][1] * y + r_true[2][2] * z;
+                [fx * rx / (rz + tz) + cx, fy * ry / (rz + tz) + cy_cam]
             });
             // 跑 solve_pnp
             let r_solved = solve_pnp(&pts_2d, &MODEL_3D, &cam).unwrap();
@@ -293,7 +329,10 @@ mod tests {
             let (yaw_est, pitch_est) = rotation_to_yaw_pitch(&r_solved);
             eprintln!(
                 "真实 yaw=10°, pitch={:>5.1}° → 估 yaw={:>7.3}° (漂移 {:+.3}°), pitch={:>7.3}°",
-                pitch_real_deg, yaw_est, yaw_est - 10.0, pitch_est
+                pitch_real_deg,
+                yaw_est,
+                yaw_est - 10.0,
+                pitch_est
             );
         }
     }
@@ -308,22 +347,26 @@ mod tests {
         let yaw_real = 10.0_f64.to_radians();
         for pitch_real_deg in [0.0_f64, 10.0, 20.0, 30.0, 40.0, 50.0] {
             let pitch_real = pitch_real_deg.to_radians();
-            let cy = yaw_real.cos(); let sy = yaw_real.sin();
-            let cp = pitch_real.cos(); let sp = pitch_real.sin();
+            let cy = yaw_real.cos();
+            let sy = yaw_real.sin();
+            let cp = pitch_real.cos();
+            let sp = pitch_real.sin();
             let r_true = [
-                [cy,      0.0,  sy],
-                [sp*sy,   cp,   -sp*cy],
-                [-cp*sy,  sp,   cp*cy],
+                [cy, 0.0, sy],
+                [sp * sy, cp, -sp * cy],
+                [-cp * sy, sp, cp * cy],
             ];
             let tz = 500.0;
-            let fx = cam[0][0]; let fy = cam[1][1];
-            let cx = cam[0][2]; let cy_cam = cam[1][2];
+            let fx = cam[0][0];
+            let fy = cam[1][1];
+            let cx = cam[0][2];
+            let cy_cam = cam[1][2];
             let pts_2d: [[f64; 2]; 6] = std::array::from_fn(|i| {
                 let [x, y, z] = MODEL_3D[i];
-                let rx = r_true[0][0]*x + r_true[0][1]*y + r_true[0][2]*z;
-                let ry = r_true[1][0]*x + r_true[1][1]*y + r_true[1][2]*z;
-                let rz = r_true[2][0]*x + r_true[2][1]*y + r_true[2][2]*z;
-                [fx*rx/(rz+tz) + cx, fy*ry/(rz+tz) + cy_cam]
+                let rx = r_true[0][0] * x + r_true[0][1] * y + r_true[0][2] * z;
+                let ry = r_true[1][0] * x + r_true[1][1] * y + r_true[1][2] * z;
+                let rz = r_true[2][0] * x + r_true[2][1] * y + r_true[2][2] * z;
+                [fx * rx / (rz + tz) + cx, fy * ry / (rz + tz) + cy_cam]
             });
             let r = solve_pnp(&pts_2d, &MODEL_3D, &cam).unwrap();
             let (yaw_raw, pitch) = rotation_to_yaw_pitch(&r);
@@ -346,19 +389,28 @@ mod tests {
         let yaw_t = 20.0_f64.to_radians();
         let pitch_t = 15.0_f64.to_radians();
         let roll_t = 10.0_f64.to_radians();
-        let cy = yaw_t.cos(); let sy = yaw_t.sin();
-        let cp = pitch_t.cos(); let sp = pitch_t.sin();
-        let cr = roll_t.cos(); let sr = roll_t.sin();
+        let cy = yaw_t.cos();
+        let sy = yaw_t.sin();
+        let cp = pitch_t.cos();
+        let sp = pitch_t.sin();
+        let cr = roll_t.cos();
+        let sr = roll_t.sin();
         // R = R_z(roll) * R_y(yaw) * R_x(pitch)
         let r = [
-            [cr*cy,            cr*sp*sy - sr*cp,  cr*cp*sy + sr*sp],
-            [sr*cy,            sr*sp*sy + cr*cp,  sr*cp*sy - cr*sp],
-            [-sp,              cp*sy,             cp*cy],
+            [cr * cy, cr * sp * sy - sr * cp, cr * cp * sy + sr * sp],
+            [sr * cy, sr * sp * sy + cr * cp, sr * cp * sy - cr * sp],
+            [-sp, cp * sy, cp * cy],
         ];
         let (yaw, pitch) = rotation_to_yaw_pitch(&r);
         eprintln!("atan2 在 yaw+pitch+roll 复合 (y=20°, p=15°, r=10°) 下:");
-        eprintln!("  yaw={yaw:.3}° (期望 20°，误差 {:.3}°)", (yaw - 20.0).abs());
-        eprintln!("  pitch={pitch:.3}° (期望 15°，误差 {:.3}°)", (pitch - 15.0).abs());
+        eprintln!(
+            "  yaw={yaw:.3}° (期望 20°，误差 {:.3}°)",
+            (yaw - 20.0).abs()
+        );
+        eprintln!(
+            "  pitch={pitch:.3}° (期望 15°，误差 {:.3}°)",
+            (pitch - 15.0).abs()
+        );
     }
 
     // ── 测试辅助 ───────────────────────────────────────────────

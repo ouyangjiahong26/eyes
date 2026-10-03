@@ -41,10 +41,8 @@ impl FrameSource for OpenCvCamera {
             .data_bytes()
             .map_err(|error| error.to_string())?
             .to_vec();
-        let width =
-            u32::try_from(size.width).map_err(|_| "摄像头帧宽度无效".to_string())?;
-        let height =
-            u32::try_from(size.height).map_err(|_| "摄像头帧高度无效".to_string())?;
+        let width = u32::try_from(size.width).map_err(|_| "摄像头帧宽度无效".to_string())?;
+        let height = u32::try_from(size.height).map_err(|_| "摄像头帧高度无效".to_string())?;
         Frame::rgb(width, height, bytes)
             .map(Some)
             .map_err(|error| format!("摄像头帧无效: {error:?}"))

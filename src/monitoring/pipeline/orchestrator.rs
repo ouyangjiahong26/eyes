@@ -3,8 +3,8 @@
 use crate::domain::calibration::{CalibrationResult, CalibrationSession, CALIBRATION_DURATION};
 use crate::domain::classifier::PoseState;
 use crate::domain::config::ConfigState;
-use crate::monitoring::events::MonitoringEvent;
 use crate::monitoring::events::event_mapping;
+use crate::monitoring::events::MonitoringEvent;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -17,7 +17,8 @@ pub type CameraFactory = Box<dyn FnMut(u32) -> Result<Box<dyn FrameSource>, Stri
 pub type DetectorFactory = Box<dyn Fn() -> Option<Box<dyn Detector>> + Send>;
 
 pub type Worker = MonitoringWorker<Box<dyn FrameSource>>;
-pub type WorkerFactory = Box<dyn FnMut(Box<dyn FrameSource>, Option<Box<dyn Detector>>) -> Box<Worker> + Send>;
+pub type WorkerFactory =
+    Box<dyn FnMut(Box<dyn FrameSource>, Option<Box<dyn Detector>>) -> Box<Worker> + Send>;
 
 /// Orchestrator 内部状态，只包含可被纯函数推进的字段。
 ///
@@ -144,8 +145,11 @@ impl WorkerOrchestrator {
         let mut snoozed = false;
         let mut monitor: Option<Box<Worker>> = self.open_monitor(camera_index, snoozed);
 
-        let mut retry_at: Option<Instant> =
-            if monitor.is_none() { Some(Instant::now() + self.retry_interval) } else { None };
+        let mut retry_at: Option<Instant> = if monitor.is_none() {
+            Some(Instant::now() + self.retry_interval)
+        } else {
+            None
+        };
 
         let tick_interval = Duration::from_millis(100);
         let mut stopped = false;
@@ -281,11 +285,7 @@ impl WorkerOrchestrator {
         }
     }
 
-    fn open_monitor(
-        &mut self,
-        camera_index: u32,
-        snoozed: bool,
-    ) -> Option<Box<Worker>> {
+    fn open_monitor(&mut self, camera_index: u32, snoozed: bool) -> Option<Box<Worker>> {
         let camera = (self.camera_factory)(camera_index).ok()?;
         let detector = (self.detector_factory)();
         let mut worker = (self.worker_factory)(camera, detector);
@@ -317,10 +317,18 @@ mod tests {
             MonitoringEvent::PreviewFrame(_) => "preview".into(),
             MonitoringEvent::SoundAlert { alert_type } => format!("sound:{}", alert_type),
             MonitoringEvent::WarningLevelChanged { level, direction } => {
-                format!("warning:{}:{}", level, direction.unwrap_or_else(|| "none".into()))
+                format!(
+                    "warning:{}:{}",
+                    level,
+                    direction.unwrap_or_else(|| "none".into())
+                )
             }
             MonitoringEvent::LogEvent { kind, .. } => format!("log:{:?}", kind),
-            MonitoringEvent::CalibrationComplete { yaw, pitch, sample_count } => {
+            MonitoringEvent::CalibrationComplete {
+                yaw,
+                pitch,
+                sample_count,
+            } => {
                 format!("calibration_complete:{}:{}:{}", yaw, pitch, sample_count)
             }
             MonitoringEvent::CalibrationFailed { reason } => {
@@ -382,7 +390,10 @@ mod tests {
         let (events, result) = state.tick(Some(&sample_output(1.0, 2.0)), 0.1);
         assert!(events.is_empty());
         assert!(result.is_none());
-        assert_eq!(state.calibration_session.as_ref().unwrap().sample_count(), 1);
+        assert_eq!(
+            state.calibration_session.as_ref().unwrap().sample_count(),
+            1
+        );
     }
 
     #[test]
@@ -395,7 +406,10 @@ mod tests {
         let mut seen_failed = false;
         for _ in 0..15 {
             let (events, _) = state.tick(Some(&no_face_output()), 0.1);
-            if events.iter().any(|e| matches!(e, MonitoringEvent::CalibrationFailed { .. })) {
+            if events
+                .iter()
+                .any(|e| matches!(e, MonitoringEvent::CalibrationFailed { .. }))
+            {
                 seen_failed = true;
             }
         }
@@ -415,12 +429,18 @@ mod tests {
         let mut seen_failed = false;
         for _ in 0..15 {
             let (events, _) = state.tick(None, 0.1);
-            if events.iter().any(|e| matches!(e, MonitoringEvent::CalibrationFailed { .. })) {
+            if events
+                .iter()
+                .any(|e| matches!(e, MonitoringEvent::CalibrationFailed { .. }))
+            {
                 seen_failed = true;
             }
         }
 
-        assert!(seen_failed, "monitor 缺失时连续 1.5 秒也应触发 CalibrationFailed");
+        assert!(
+            seen_failed,
+            "monitor 缺失时连续 1.5 秒也应触发 CalibrationFailed"
+        );
         assert!(state.calibration_session.is_none());
     }
 
@@ -456,7 +476,10 @@ mod tests {
         for _ in 0..10 {
             let (events, r) = state.tick(Some(&sample_output(3.0, 5.0)), 0.1);
             result = r;
-            if events.iter().any(|e| matches!(e, MonitoringEvent::CalibrationComplete { .. })) {
+            if events
+                .iter()
+                .any(|e| matches!(e, MonitoringEvent::CalibrationComplete { .. }))
+            {
                 break;
             }
         }
@@ -571,9 +594,8 @@ mod tests {
         };
 
         let detector_factory: DetectorFactory = Box::new(move || {
-            detector_pose.map(|pose| {
-                Box::new(TestDetector { pose: Some(pose) }) as Box<dyn Detector>
-            })
+            detector_pose
+                .map(|pose| Box::new(TestDetector { pose: Some(pose) }) as Box<dyn Detector>)
         });
 
         let cs = config_state.clone();
@@ -606,7 +628,13 @@ mod tests {
 
     #[test]
     fn stops_on_command() {
-        let (orch, tx, rx, _event_rx) = setup_orchestrator(true, Some(HeadPose { yaw: 0.0, pitch: 0.0 }));
+        let (orch, tx, rx, _event_rx) = setup_orchestrator(
+            true,
+            Some(HeadPose {
+                yaw: 0.0,
+                pitch: 0.0,
+            }),
+        );
 
         let handle = std::thread::spawn(move || {
             orch.run(rx);
@@ -618,7 +646,13 @@ mod tests {
 
     #[test]
     fn channel_close_exits_gracefully() {
-        let (orch, _tx, rx, _event_rx) = setup_orchestrator(true, Some(HeadPose { yaw: 0.0, pitch: 0.0 }));
+        let (orch, _tx, rx, _event_rx) = setup_orchestrator(
+            true,
+            Some(HeadPose {
+                yaw: 0.0,
+                pitch: 0.0,
+            }),
+        );
 
         let handle = std::thread::spawn(move || {
             orch.run(rx);
@@ -630,7 +664,13 @@ mod tests {
 
     #[test]
     fn emits_pose_on_good_tick() {
-        let (orch, tx, rx, event_rx) = setup_orchestrator(true, Some(HeadPose { yaw: 0.0, pitch: 0.0 }));
+        let (orch, tx, rx, event_rx) = setup_orchestrator(
+            true,
+            Some(HeadPose {
+                yaw: 0.0,
+                pitch: 0.0,
+            }),
+        );
 
         let handle = std::thread::spawn(move || {
             orch.run(rx);
@@ -661,7 +701,8 @@ mod tests {
             }
         }
 
-        let camera_factory: CameraFactory = Box::new(move |_idx| Ok(Box::new(FailingCamera) as Box<dyn FrameSource>));
+        let camera_factory: CameraFactory =
+            Box::new(move |_idx| Ok(Box::new(FailingCamera) as Box<dyn FrameSource>));
         let detector_factory: DetectorFactory = Box::new(|| None);
         let cs = config_state.clone();
         let worker_factory: WorkerFactory = Box::new(move |camera, detector| {
@@ -706,7 +747,10 @@ mod tests {
         let worker_factory: WorkerFactory = Box::new(move |_cam, _det| {
             count.fetch_add(1, Ordering::SeqCst);
             Box::new(MonitoringWorker::new(
-                Box::new(TestCamera { frames: vec![Some(fake_frame()); 5], idx: 0 }) as Box<dyn FrameSource>,
+                Box::new(TestCamera {
+                    frames: vec![Some(fake_frame()); 5],
+                    idx: 0,
+                }) as Box<dyn FrameSource>,
                 None,
                 default_worker_engine(),
                 cs.clone(),
@@ -714,7 +758,10 @@ mod tests {
         });
 
         let camera_factory: CameraFactory = Box::new(move |_idx| {
-            Ok(Box::new(TestCamera { frames: vec![Some(fake_frame()); 5], idx: 0 }) as Box<dyn FrameSource>)
+            Ok(Box::new(TestCamera {
+                frames: vec![Some(fake_frame()); 5],
+                idx: 0,
+            }) as Box<dyn FrameSource>)
         });
         let detector_factory: DetectorFactory = Box::new(|| None);
 
@@ -741,7 +788,8 @@ mod tests {
         // SetConfig 不同 camera_index → 重建
         let mut changed_config = config_state.get();
         changed_config.camera_index = 99;
-        let _ = tx.0.send(WorkerCommand::SetConfig(Box::new(changed_config)));
+        let _ =
+            tx.0.send(WorkerCommand::SetConfig(Box::new(changed_config)));
         std::thread::sleep(Duration::from_millis(50));
         assert_eq!(factory_call_count.load(Ordering::SeqCst), 2);
 
@@ -754,7 +802,13 @@ mod tests {
     #[test]
     fn calibration_complete_emits_event() {
         // 5 秒校准，准备足够多的样本
-        let (orch, tx, rx, event_rx) = setup_orchestrator(true, Some(HeadPose { yaw: 3.0, pitch: 5.0 }));
+        let (orch, tx, rx, event_rx) = setup_orchestrator(
+            true,
+            Some(HeadPose {
+                yaw: 3.0,
+                pitch: 5.0,
+            }),
+        );
 
         let handle = std::thread::spawn(move || {
             orch.run(rx);
@@ -767,7 +821,10 @@ mod tests {
         let _ = handle.join();
 
         let events = collect_events(&event_rx);
-        let cal_events: Vec<_> = events.iter().filter(|e| e.starts_with("calibration_complete:")).collect();
+        let cal_events: Vec<_> = events
+            .iter()
+            .filter(|e| e.starts_with("calibration_complete:"))
+            .collect();
         assert_eq!(cal_events.len(), 1, "应恰好发出一次 CalibrationComplete");
     }
 
@@ -791,7 +848,9 @@ mod tests {
             "应发出连续无脸导致的校准失败事件"
         );
         assert!(
-            !events.iter().any(|e| e.starts_with("calibration_complete:")),
+            !events
+                .iter()
+                .any(|e| e.starts_with("calibration_complete:")),
             "失败时不应发出 CalibrationComplete"
         );
     }
@@ -800,11 +859,16 @@ mod tests {
 
     #[test]
     fn snooze_preserved_on_set_camera_index() {
-        let (orch, tx, rx, event_rx) = setup_orchestrator(true, Some(HeadPose { yaw: 6.0, pitch: 0.0 }));
+        let (orch, tx, rx, event_rx) = setup_orchestrator(
+            true,
+            Some(HeadPose {
+                yaw: 6.0,
+                pitch: 0.0,
+            }),
+        );
 
         let handle = std::thread::spawn(move || {
-            orch.with_retry_interval(Duration::from_millis(50))
-                .run(rx);
+            orch.with_retry_interval(Duration::from_millis(50)).run(rx);
         });
 
         // 等待首次 worker 创建并产生 correction

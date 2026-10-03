@@ -15,8 +15,8 @@ use eyes_lib::domain::classifier::{HeadPose, PoseState};
 use eyes_lib::domain::config::{ConfigState, ConfigStore};
 use eyes_lib::domain::posture_tick_engine::{PostureTickEngine, SenseEvent, WarningLevel};
 use eyes_lib::domain::thresholds::TimingThresholds;
-use eyes_lib::monitoring::events::MonitoringEvent;
 use eyes_lib::monitoring::events::event_mapping;
+use eyes_lib::monitoring::events::MonitoringEvent;
 use eyes_lib::monitoring::pipeline::detector::Detector;
 use eyes_lib::monitoring::pipeline::worker::{FrameSource, MonitoringWorker, WorkerOutput};
 use eyes_lib::monitoring::preview::Frame;
@@ -77,7 +77,9 @@ impl FrameSource for FakeCamera {
 // ── 辅助函数 ───────────────────────────────────────────────────
 
 fn has_correction(events: &[SenseEvent]) -> bool {
-    events.iter().any(|e| matches!(e, SenseEvent::Correction { .. }))
+    events
+        .iter()
+        .any(|e| matches!(e, SenseEvent::Correction { .. }))
 }
 
 fn has_correction_for(events: &[SenseEvent], state: PoseState) -> bool {
@@ -95,9 +97,9 @@ fn has_eye_rest(events: &[SenseEvent]) -> bool {
 }
 
 fn has_warning(events: &[SenseEvent], level: WarningLevel) -> bool {
-    events.iter().any(|e| {
-        matches!(e, SenseEvent::WarningLevelChanged { level: actual, .. } if *actual == level)
-    })
+    events.iter().any(
+        |e| matches!(e, SenseEvent::WarningLevelChanged { level: actual, .. } if *actual == level),
+    )
 }
 
 fn collect_events(outputs: &[WorkerOutput]) -> Vec<SenseEvent> {
@@ -127,7 +129,12 @@ fn default_config_state() -> Arc<ConfigState> {
 fn make_worker(yaw: f64, pitch: f64) -> MonitoringWorker<FakeCamera> {
     let active = Box::leak(Box::new(AtomicBool::new(true)));
     let detector = Box::new(FakeDetector::new(yaw, pitch, active));
-    MonitoringWorker::new(FakeCamera, Some(detector as Box<dyn Detector>), default_engine(), default_config_state())
+    MonitoringWorker::new(
+        FakeCamera,
+        Some(detector as Box<dyn Detector>),
+        default_engine(),
+        default_config_state(),
+    )
 }
 
 fn make_worker_with_engine(
@@ -137,7 +144,12 @@ fn make_worker_with_engine(
 ) -> (MonitoringWorker<FakeCamera>, &'static AtomicBool) {
     let active = Box::leak(Box::new(AtomicBool::new(true)));
     let detector = Box::new(FakeDetector::new(yaw, pitch, active));
-    let worker = MonitoringWorker::new(FakeCamera, Some(detector as Box<dyn Detector>), engine, default_config_state());
+    let worker = MonitoringWorker::new(
+        FakeCamera,
+        Some(detector as Box<dyn Detector>),
+        engine,
+        default_config_state(),
+    );
     (worker, active)
 }
 
@@ -154,7 +166,12 @@ fn off_axis_yields_first_correction() {
     let outputs = tick_n(&mut w, 4, 0.1); // 0.4s > 0.3s threshold
     let events = collect_events(&outputs);
     assert!(
-        events.iter().any(|e| matches!(e, SenseEvent::Correction { direction: PoseState::OffAxisRight })),
+        events.iter().any(|e| matches!(
+            e,
+            SenseEvent::Correction {
+                direction: PoseState::OffAxisRight
+            }
+        )),
         "持续偏离 0.4s 应触发 Correction, events={events:?}"
     );
 }
@@ -181,7 +198,7 @@ fn streak_resets_after_returning_to_center() {
     // 回到正对 — 创建新 worker 重置 streak
     let mut w2 = make_worker(0.0, 0.0);
     tick_n(&mut w2, 5, 0.1); // 0.5s 正对
-    // 再次偏离，需要重新计时
+                             // 再次偏离，需要重新计时
     let mut w3 = make_worker(6.0, 0.0);
     let outputs = tick_n(&mut w3, 2, 0.1); // 0.2s < 0.3s
     let events = collect_events(&outputs);
@@ -246,7 +263,10 @@ fn warning_fires_on_first_off_axis() {
     // 偏离 1s → 触发 Warning
     let outputs = tick_n(&mut w, 10, 0.1);
     let events = collect_events(&outputs);
-    assert!(has_warning(&events, WarningLevel::Warning), "首次偏离应触发 Warning");
+    assert!(
+        has_warning(&events, WarningLevel::Warning),
+        "首次偏离应触发 Warning"
+    );
 }
 
 #[test]
@@ -255,7 +275,10 @@ fn severe_fires_after_sustained_off_axis() {
     // 偏离 2s+ → Warning 再到 Severe
     let outputs = tick_n(&mut w, 21, 0.1);
     let events = collect_events(&outputs);
-    assert!(has_warning(&events, WarningLevel::Severe), "偏离 2s+ 应触发 Severe");
+    assert!(
+        has_warning(&events, WarningLevel::Severe),
+        "偏离 2s+ 应触发 Severe"
+    );
 }
 
 #[test]

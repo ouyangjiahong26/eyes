@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use super::detector::Detector;
-use crate::monitoring::preview::{encode_preview, Frame, PreviewFrame};
 use crate::domain::classifier::{self, NeutralPose, PoseClassification, PoseState, Thresholds};
 use crate::domain::config::ConfigState;
 use crate::domain::posture_tick_engine::{PostureTickEngine, SenseEvent, WarningLevel};
+use crate::monitoring::preview::{encode_preview, Frame, PreviewFrame};
 
 /// 帧来源（摄像头）。
 pub trait FrameSource: Send + 'static {
@@ -152,7 +152,12 @@ pub struct FakeDetector {
 
 #[cfg(test)]
 impl Detector for FakeDetector {
-    fn detect(&mut self, _rgb: &[u8], _w: u32, _h: u32) -> Option<crate::domain::classifier::HeadPose> {
+    fn detect(
+        &mut self,
+        _rgb: &[u8],
+        _w: u32,
+        _h: u32,
+    ) -> Option<crate::domain::classifier::HeadPose> {
         self.pose
     }
 }
@@ -189,9 +194,13 @@ mod tests {
         frames: Vec<Option<Frame>>,
         pose: Option<HeadPose>,
     ) -> MonitoringWorker<FakeCamera> {
-        make_worker_with_config(frames, pose, Arc::new(
-            ConfigState::new(ConfigStore::new(tempfile::tempdir().unwrap().path())).unwrap(),
-        ))
+        make_worker_with_config(
+            frames,
+            pose,
+            Arc::new(
+                ConfigState::new(ConfigStore::new(tempfile::tempdir().unwrap().path())).unwrap(),
+            ),
+        )
     }
 
     fn make_worker_with_config(
@@ -200,15 +209,9 @@ mod tests {
         config_state: Arc<ConfigState>,
     ) -> MonitoringWorker<FakeCamera> {
         let camera = FakeCamera { frames, idx: 0 };
-        let det: Option<Box<dyn Detector>> = pose.map(|p| {
-            Box::new(FakeDetector { pose: Some(p) }) as Box<dyn Detector>
-        });
-        MonitoringWorker::new(
-            camera,
-            det,
-            PostureTickEngine::default(),
-            config_state,
-        )
+        let det: Option<Box<dyn Detector>> =
+            pose.map(|p| Box::new(FakeDetector { pose: Some(p) }) as Box<dyn Detector>);
+        MonitoringWorker::new(camera, det, PostureTickEngine::default(), config_state)
     }
 
     #[test]
@@ -231,7 +234,10 @@ mod tests {
     fn facing_screen_detected() {
         let mut w = make_worker(
             vec![Some(fake_frame(640, 480))],
-            Some(HeadPose { yaw: 0.0, pitch: 0.0 }),
+            Some(HeadPose {
+                yaw: 0.0,
+                pitch: 0.0,
+            }),
         );
         let out = w.tick(0.1);
         assert!(out.camera_ok);
@@ -242,7 +248,13 @@ mod tests {
     #[test]
     fn off_axis_right_triggers_correction() {
         let frames = vec![Some(fake_frame(640, 480)); 20];
-        let mut w = make_worker(frames, Some(HeadPose { yaw: 6.0, pitch: 0.0 }));
+        let mut w = make_worker(
+            frames,
+            Some(HeadPose {
+                yaw: 6.0,
+                pitch: 0.0,
+            }),
+        );
 
         let mut got_correction = false;
         for _ in 0..20 {
@@ -262,8 +274,12 @@ mod tests {
             frames: vec![Some(fake_frame(640, 480))],
             idx: 0,
         };
-        let det: Option<Box<dyn Detector>> =
-            Some(Box::new(FakeDetector { pose: Some(HeadPose { yaw: 6.0, pitch: 0.0 }) }));
+        let det: Option<Box<dyn Detector>> = Some(Box::new(FakeDetector {
+            pose: Some(HeadPose {
+                yaw: 6.0,
+                pitch: 0.0,
+            }),
+        }));
         let cs = Arc::new(
             ConfigState::new(ConfigStore::new(tempfile::tempdir().unwrap().path())).unwrap(),
         );
@@ -276,12 +292,15 @@ mod tests {
 
     #[test]
     fn no_face_resets_classification() {
-        let frames = vec![
-            Some(fake_frame(640, 480)),
-            Some(fake_frame(640, 480)),
-        ];
+        let frames = vec![Some(fake_frame(640, 480)), Some(fake_frame(640, 480))];
         // 第一帧有脸，第二帧无脸
-        let mut w = make_worker(frames, Some(HeadPose { yaw: 0.0, pitch: 0.0 }));
+        let mut w = make_worker(
+            frames,
+            Some(HeadPose {
+                yaw: 0.0,
+                pitch: 0.0,
+            }),
+        );
         let out1 = w.tick(0.1);
         assert_eq!(out1.pose_state, PoseState::FacingScreen);
 
@@ -298,7 +317,10 @@ mod tests {
         // 默认 yaw_threshold=5.0，yaw=6.0 会判为 OffAxisRight
         let mut w = make_worker_with_config(
             vec![Some(fake_frame(640, 480))],
-            Some(HeadPose { yaw: 6.0, pitch: 0.0 }),
+            Some(HeadPose {
+                yaw: 6.0,
+                pitch: 0.0,
+            }),
             cs.clone(),
         );
         let out = w.tick(0.1);
@@ -308,7 +330,10 @@ mod tests {
         cs.update(|c| c.yaw_threshold = 20.0).unwrap();
         let mut w2 = make_worker_with_config(
             vec![Some(fake_frame(640, 480))],
-            Some(HeadPose { yaw: 6.0, pitch: 0.0 }),
+            Some(HeadPose {
+                yaw: 6.0,
+                pitch: 0.0,
+            }),
             cs.clone(),
         );
         let out2 = w2.tick(0.1);
@@ -322,7 +347,10 @@ mod tests {
         // 中性偏航=0，默认阈值=5.0，yaw=4.0 → FacingScreen
         let mut w = make_worker_with_config(
             vec![Some(fake_frame(640, 480))],
-            Some(HeadPose { yaw: 4.0, pitch: 0.0 }),
+            Some(HeadPose {
+                yaw: 4.0,
+                pitch: 0.0,
+            }),
             cs.clone(),
         );
         let out = w.tick(0.1);
@@ -332,7 +360,10 @@ mod tests {
         cs.update(|c| c.neutral_yaw = -5.0).unwrap();
         let mut w2 = make_worker_with_config(
             vec![Some(fake_frame(640, 480))],
-            Some(HeadPose { yaw: 4.0, pitch: 0.0 }),
+            Some(HeadPose {
+                yaw: 4.0,
+                pitch: 0.0,
+            }),
             cs.clone(),
         );
         let out2 = w2.tick(0.1);

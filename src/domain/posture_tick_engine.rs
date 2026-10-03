@@ -424,7 +424,10 @@ mod tests {
 
         for _ in 0..100 {
             let events = yaw.tick(PoseState::HeadUp, dt, threshold, severe, repeat);
-            assert!(events.is_empty(), "yaw tracker should not emit events for HeadUp");
+            assert!(
+                events.is_empty(),
+                "yaw tracker should not emit events for HeadUp"
+            );
         }
 
         assert_eq!(yaw.continuous_seconds, 0.0);
@@ -457,7 +460,10 @@ mod tests {
         // 轴专属过滤后，yaw 仍应正常响应本轴偏离。
         let mut yaw = OffAxisState::new_yaw();
         let events = yaw.tick(PoseState::OffAxisRight, 0.5, 0.3, 10.0, 10.0);
-        assert!(!events.is_empty(), "yaw tracker should emit Correction for OffAxisRight");
+        assert!(
+            !events.is_empty(),
+            "yaw tracker should emit Correction for OffAxisRight"
+        );
         assert_eq!(yaw.warning_level, WarningLevel::Warning);
     }
 
@@ -466,7 +472,10 @@ mod tests {
         // 轴专属过滤后，pitch 仍应正常响应本轴偏离。
         let mut pitch = OffAxisState::new_pitch();
         let events = pitch.tick(PoseState::HeadUp, 0.5, 0.3, 10.0, 10.0);
-        assert!(!events.is_empty(), "pitch tracker should emit Correction for HeadUp");
+        assert!(
+            !events.is_empty(),
+            "pitch tracker should emit Correction for HeadUp"
+        );
         assert_eq!(pitch.warning_level, WarningLevel::Warning);
     }
 }

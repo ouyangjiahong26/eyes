@@ -85,7 +85,11 @@ fn check_opencv_pkgconfig() {
     use std::process::Command;
 
     // 先确认 pkg-config 本体存在，避免把“没装 pkg-config”误报成“没装 OpenCV”。
-    if Command::new("pkg-config").arg("--version").status().is_err() {
+    if Command::new("pkg-config")
+        .arg("--version")
+        .status()
+        .is_err()
+    {
         panic!(
             "\n未找到 pkg-config。\n  \
              Debian/Ubuntu: sudo apt install pkg-config\n  \
